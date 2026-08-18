@@ -1,0 +1,17 @@
+owner:
+  name: Demo Owner
+  email: owner@example.com
+intended_use: >
+  Demonstration scorecard for unsecured consumer lending decisions on the
+  synthetic demo population. Not a real model; exists to show what a
+  covenant breach looks like.
+limitations:
+  - Synthetic data; no out-of-time sample.
+  - Linear model; no interaction effects represented.
+materiality:
+  tier: 3
+  justification: >
+    Demonstration model with zero portfolio exposure; lowest tier applies
+    because it makes no real decisions.
+review_date: 2027-02-01
+vendor: null
