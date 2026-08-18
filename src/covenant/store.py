@@ -79,18 +79,50 @@ class Store:
             return []
         return sorted(p.name for p in models_dir.iterdir() if p.is_dir())
 
+    def check_path(self, model_name: str, check_name: str, short_hash: str) -> Path:
+        return self.root / "checks" / model_name / f"{check_name}-{short_hash}.yaml"
+
     def write_check(self, model_name: str, check_name: str, short_hash: str, record: dict) -> Path:
-        path = self.root / "checks" / model_name / f"{check_name}-{short_hash}.yaml"
+        path = self.check_path(model_name, check_name, short_hash)
         write_yaml(path, record)
         return path
 
+    def list_checks(self, model_name: str) -> list[Path]:
+        checks_dir = self.root / "checks" / model_name
+        if not checks_dir.exists():
+            return []
+        return sorted(checks_dir.glob("*.yaml"))
 
-def diff_records(a: Any, b: Any, path: str = "") -> list[str]:
+    def resolve_version(self, model_name: str, prefix: str) -> str:
+        """Resolve a (possibly partial) version id to the full stored one."""
+        versions = self.list_versions(model_name)
+        matches = [v for v in versions if v.startswith(prefix)]
+        if len(matches) == 1:
+            return matches[0]
+        if not matches:
+            raise FileNotFoundError(
+                f"no version of {model_name!r} matches {prefix!r}; "
+                f"known versions: {versions or 'none'}"
+            )
+        raise FileNotFoundError(
+            f"version prefix {prefix!r} is ambiguous for {model_name!r}: {matches}"
+        )
+
+
+DIFF_NOISE_KEYS = ("created_at",)
+
+
+def diff_records(
+    a: Any, b: Any, path: str = "", ignore: tuple[str, ...] = DIFF_NOISE_KEYS
+) -> list[str]:
     """Structural diff between two record trees, as `~ changed`, `+ added`,
-    `- removed` lines with dotted paths."""
+    `- removed` lines with dotted paths. Top-level keys in ``ignore``
+    (timestamps, by default) are skipped; pass ``ignore=()`` for everything."""
     lines: list[str] = []
     if isinstance(a, dict) and isinstance(b, dict):
         for key in sorted(set(a) | set(b), key=str):
+            if not path and key in ignore:
+                continue
             sub = f"{path}.{key}" if path else str(key)
             if key not in a:
                 lines.append(f"+ {sub}: {b[key]!r}")

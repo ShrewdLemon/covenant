@@ -12,7 +12,6 @@ it comes from.
 
 from __future__ import annotations
 
-import datetime as dt
 from pathlib import Path
 
 import numpy as np
@@ -50,7 +49,6 @@ def run_reason_code_check(
     data_path: str | Path,
     covenants_path: str | Path,
     config_overrides: dict | None = None,
-    now: dt.datetime | None = None,
 ) -> CheckRecord:
     covenants: ModelCovenants = load_covenants(covenants_path)
     config: ReasonCodeCheckConfig = covenants.checks.reason_codes
@@ -59,12 +57,20 @@ def run_reason_code_check(
 
     data = load_data(data_path).reset_index(drop=True)
     features = covenants.feature_names()
+    categorical = covenants.categorical_features()
     missing = [f for f in features if f not in data.columns]
     if missing:
         raise CheckSetupError(f"data lacks declared features: {missing}")
+    if config.id_column and config.id_column not in data.columns:
+        raise CheckSetupError(
+            f"checks.reason_codes.id_column {config.id_column!r} is not a "
+            "column of the data snapshot"
+        )
+    numeric = [f for f in features if f not in categorical]
+    data[numeric] = data[numeric].astype(float)
 
     estimator = load_model(model_path)
-    model = CovenantModel(estimator, features)
+    model = CovenantModel(estimator, features, positive_class=covenants.positive_class)
 
     p_bad = model.p_bad(data)
     denied_idx = np.flatnonzero(p_bad >= config.decision_threshold)
@@ -83,15 +89,22 @@ def run_reason_code_check(
     p_denied = p_bad[denied_idx]
 
     # Declared side: what the production pipeline would tell the applicant.
+    ids = data.loc[denied_idx, config.id_column] if config.id_column else None
     declared_sets, declared_top1 = declared_reason_sets(
-        covenants.reason_codes, X_denied, Path(covenants_path).resolve().parent
+        covenants.reason_codes,
+        X_denied,
+        Path(covenants_path).resolve().parent,
+        ids=ids,
+        id_column=config.id_column,
     )
 
     # Measured side: SHAP under a seeded background, plus a second background
     # so the record reports how much the measured side itself moves.
     k = covenants.reason_codes.top_k
     background_a = sample_background(data, features, config.background_size, config.random_state)
-    attributions = measured_attributions(model, X_denied, background_a, config.random_state)
+    attributions = measured_attributions(
+        model, X_denied, background_a, categorical, config.random_state
+    )
     measured_sets = top_k_sets(attributions, k)
     measured_top1 = top_1(attributions)
 
@@ -99,7 +112,7 @@ def run_reason_code_check(
         data, features, config.background_size, config.random_state + 1
     )
     attributions_b = measured_attributions(
-        model, X_denied, background_b, config.random_state + 1
+        model, X_denied, background_b, categorical, config.random_state + 1
     )
     measured_sets_b = top_k_sets(attributions_b, k)
     background_jaccard = float(
@@ -126,7 +139,6 @@ def run_reason_code_check(
     record = CheckRecord(
         check=CHECK_NAME,
         model_name=covenants.model_name,
-        created_at=now or dt.datetime.now(dt.UTC),
         passed=passed,
         metrics={
             "top1_agreement": round(top1_agreement, 4),

@@ -52,6 +52,27 @@ def test_duplicate_features_rejected() -> None:
     assert "duplicate" in str(exc.value)
 
 
+def test_custom_reasons_require_id_column() -> None:
+    doc = {**BASE_COVENANTS, "reason_codes": {"method": "custom"}}
+    with pytest.raises(ValidationError) as exc:
+        ModelCovenants.model_validate(doc)
+    assert "id_column" in str(exc.value)
+
+    doc["checks"] = {"reason_codes": {"id_column": "app_id"}}
+    parsed = ModelCovenants.model_validate(doc)
+    assert parsed.checks.reason_codes.id_column == "app_id"
+
+
+def test_categorical_feature_cannot_declare_direction() -> None:
+    doc = {
+        **BASE_COVENANTS,
+        "features": [{"name": "state", "dtype": "categorical", "direction": "increases_risk"}],
+    }
+    with pytest.raises(ValidationError) as exc:
+        ModelCovenants.model_validate(doc)
+    assert "not testable" in str(exc.value)
+
+
 def test_valid_documents_parse() -> None:
     gov = GovernanceRecord.model_validate(BASE_GOVERNANCE)
     assert gov.materiality.tier == 2

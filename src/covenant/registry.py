@@ -10,7 +10,7 @@ import pandas as pd
 from pydantic import ValidationError
 
 from covenant.hashing import sha256_canonical, sha256_dataframe, sha256_file, version_id
-from covenant.model import library_versions, load_model
+from covenant.model import CovenantModel, library_versions, load_model
 from covenant.schema import (
     DataInfo,
     GovernanceRecord,
@@ -82,10 +82,10 @@ def register(
         )
 
     estimator = load_model(model_path)
-    if not hasattr(estimator, "predict_proba"):
-        raise RegistrationError(
-            f"{type(estimator).__name__} has no predict_proba; cannot register."
-        )
+    try:
+        CovenantModel(estimator, covenants.feature_names(), positive_class=covenants.positive_class)
+    except (TypeError, ValueError) as err:
+        raise RegistrationError(str(err)) from err
 
     hashes = Hashes(
         model_sha256=sha256_file(model_path),

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "covenants"
-version = "0.1.0"
+version = "0.2.0"
 description = "pytest for credit-model governance: a model's documentation is a set of testable claims about its behaviour, so test them."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -28,9 +28,15 @@ def load_model(path: str | Path) -> Any:
     path = Path(path)
     try:
         return joblib.load(path)
-    except Exception:
-        with open(path, "rb") as f:
-            return pickle.load(f)
+    except Exception as joblib_err:
+        try:
+            with open(path, "rb") as f:
+                return pickle.load(f)
+        except Exception as pickle_err:
+            raise ValueError(
+                f"could not load {path} as joblib ({joblib_err}) "
+                f"or pickle ({pickle_err})"
+            ) from pickle_err
 
 
 def library_versions() -> dict[str, str]:
@@ -53,13 +59,16 @@ def library_versions() -> dict[str, str]:
 class CovenantModel:
     """A scored model bound to its declared feature order.
 
-    ``bad_class_index`` selects the column of ``predict_proba`` that is the
-    probability of default/bad. The convention throughout Covenant is that
-    higher ``p_bad`` means deny.
+    ``positive_class`` is the label of the bad/default class as it appears
+    in the estimator's ``classes_``; it selects the column of
+    ``predict_proba`` that is ``p_bad``. The convention throughout Covenant
+    is that higher ``p_bad`` means deny. When unset, the class at index 1
+    is assumed — the sklearn convention for 0/1 targets.
     """
 
     estimator: Any
     feature_names: list[str]
+    positive_class: int | str | None = None
     bad_class_index: int = 1
 
     def __post_init__(self) -> None:
@@ -68,6 +77,21 @@ class CovenantModel:
                 f"{type(self.estimator).__name__} has no predict_proba; "
                 "Covenant's model contract is predict_proba over a dataframe."
             )
+        if self.positive_class is not None:
+            classes = getattr(self.estimator, "classes_", None)
+            if classes is None:
+                raise ValueError(
+                    "positive_class is declared but the estimator exposes no "
+                    "classes_; drop positive_class or use an estimator that "
+                    "records its classes"
+                )
+            matches = [i for i, c in enumerate(classes) if c == self.positive_class]
+            if not matches:
+                raise ValueError(
+                    f"positive_class {self.positive_class!r} not in the "
+                    f"estimator's classes_ {list(classes)!r}"
+                )
+            self.bad_class_index = matches[0]
 
     def _align(self, X: pd.DataFrame) -> pd.DataFrame:
         missing = [c for c in self.feature_names if c not in X.columns]
@@ -77,10 +101,4 @@ class CovenantModel:
 
     def p_bad(self, X: pd.DataFrame) -> np.ndarray:
         proba = self.estimator.predict_proba(self._align(X))
-        return np.asarray(proba)[:, self.bad_class_index]
-
-    def p_bad_from_array(self, X: np.ndarray) -> np.ndarray:
-        """Score a numpy array already in declared feature order (SHAP path)."""
-        frame = pd.DataFrame(X, columns=self.feature_names)
-        proba = self.estimator.predict_proba(frame)
         return np.asarray(proba)[:, self.bad_class_index]

@@ -3,11 +3,17 @@
 Every check produces a rate against a stated threshold, not just a verdict,
 and writes a hash-stamped YAML record so the run is citable evidence.
 A failing check is a covenant breach and exits non-zero in CI.
+
+Records are replayable: the record contains only what the check computed
+from its inputs, so the same inputs produce byte-identical records at the
+same path. Run timestamps live in an append-only ``runs.log`` sidecar,
+not in the record.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +27,6 @@ class CheckRecord(BaseModel):
 
     check: str
     model_name: str
-    created_at: dt.datetime
     passed: bool
     metrics: dict[str, float]
     thresholds: dict[str, float]
@@ -38,8 +43,22 @@ class CheckRecord(BaseModel):
         return self
 
     def write(self, store: Store) -> str:
+        """Idempotent: the path is derived from the record hash, an existing
+        record is never rewritten, and every run is appended to runs.log."""
         store.init()
-        path = store.write_check(
-            self.model_name, self.check, self.record_sha256[:12], self.model_dump(mode="json")
-        )
+        path = store.check_path(self.model_name, self.check, self.record_sha256[:12])
+        if not path.exists():
+            store.write_check(
+                self.model_name, self.check, self.record_sha256[:12],
+                self.model_dump(mode="json"),
+            )
+        self._log_run(store, path)
         return str(path)
+
+    def _log_run(self, store: Store, path: Path) -> None:
+        log = store.root / "checks" / self.model_name / "runs.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        stamp = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+        verdict = "PASS" if self.passed else "BREACH"
+        with open(log, "a") as f:
+            f.write(f"{stamp} {self.check} {self.record_sha256[:12]} {verdict}\n")
