@@ -1,0 +1,43 @@
+# BROKEN on purpose: reason codes come from a stale coefficient table.
+covenant_schema: 1
+model_name: demo-scorecard
+features:
+  - name: income
+    dtype: numeric
+    direction: decreases_risk
+  - name: dti
+    dtype: numeric
+    direction: increases_risk
+  - name: utilization
+    dtype: numeric
+    direction: increases_risk
+  - name: delinquencies_24m
+    dtype: numeric
+    direction: increases_risk
+  - name: inquiries_6m
+    dtype: numeric
+    direction: increases_risk
+  - name: age_of_oldest_line_months
+    dtype: numeric
+    direction: decreases_risk
+  - name: loan_amount
+    dtype: numeric
+    direction: increases_risk
+  - name: employment_years
+    dtype: numeric
+    direction: decreases_risk
+excluded:
+  - name: gender
+    reason: protected attribute (ECOA / not collected)
+reason_codes:
+  method: difference_from_mean
+  top_k: 4
+  parameters:
+    coefficients: coefficients_stale.csv
+checks:
+  reason_codes:
+    min_top1_agreement: 0.75
+    min_topk_jaccard: 0.60
+    decision_threshold: 0.5
+    max_denied_sample: 120
+    background_size: 60

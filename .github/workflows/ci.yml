@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: uv pip install --system -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests examples
+      - name: Tests
+        run: pytest -q
+
+  demo:
+    # The README's central claim, asserted on every commit: the broken
+    # scorecard breaches (exit 1), the fixed one passes (exit 0).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv pip install --system -e .
+      - name: Build demo artifacts
+        run: python examples/broken_scorecard/make_demo.py
+      - name: Broken scorecard must breach
+        working-directory: examples/broken_scorecard
+        run: |
+          set +e
+          covenant check reason-codes model.joblib train.csv --covenants covenants_broken.yaml
+          code=$?
+          set -e
+          test "$code" -eq 1
+      - name: Fixed scorecard must pass
+        working-directory: examples/broken_scorecard
+        run: covenant check reason-codes model.joblib train.csv --covenants covenants_fixed.yaml
+      - name: Register and diff both versions
+        working-directory: examples/broken_scorecard
+        run: |
+          covenant register model.joblib train.csv --covenants covenants_fixed.yaml --governance governance.yaml
+          covenant register model.joblib train.csv --covenants covenants_broken.yaml --governance governance.yaml
+          covenant list
