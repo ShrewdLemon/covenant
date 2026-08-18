@@ -52,6 +52,17 @@ jobs:
       - name: Fixed scorecard must pass
         working-directory: examples/broken_scorecard
         run: covenant check reason-codes model.joblib train.csv --covenants covenants_fixed.yaml
+      - name: Unconstrained GBM must breach monotonicity
+        working-directory: examples/broken_scorecard
+        run: |
+          set +e
+          covenant check monotonicity model_gbm_unconstrained.joblib train.csv --covenants covenants_gbm.yaml
+          code=$?
+          set -e
+          test "$code" -eq 1
+      - name: Constrained GBM must pass monotonicity
+        working-directory: examples/broken_scorecard
+        run: covenant check monotonicity model_gbm_constrained.joblib train.csv --covenants covenants_gbm.yaml
       - name: Register and diff both versions
         working-directory: examples/broken_scorecard
         run: |

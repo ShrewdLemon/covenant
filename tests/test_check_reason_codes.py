@@ -53,3 +53,51 @@ def test_threshold_override_and_too_few_denied(fitted: dict) -> None:
             fitted["covenants"],
             {"decision_threshold": 0.999},
         )
+
+
+def test_record_write_is_idempotent(fitted: dict, store_dir: Path) -> None:
+    store = Store(store_dir)
+    a = run_reason_code_check(fitted["model"], fitted["data"], fitted["covenants"])
+    path_a = Path(a.write(store))
+    bytes_a = path_a.read_bytes()
+    b = run_reason_code_check(fitted["model"], fitted["data"], fitted["covenants"])
+    path_b = Path(b.write(store))
+
+    assert path_a == path_b
+    assert path_b.read_bytes() == bytes_a
+    records = [p for p in path_a.parent.glob("reason-codes-*.yaml")]
+    assert len(records) == 1
+    log = (path_a.parent / "runs.log").read_text().splitlines()
+    assert len(log) == 2
+    assert all(a.record_sha256[:12] in line for line in log)
+
+
+def test_categorical_pipeline_runs(fitted_categorical: dict) -> None:
+    """A ColumnTransformer/OneHotEncoder pipeline with a categorical covenant
+    must run through SHAP without crashing (regression: str - str TypeError)."""
+    record = run_reason_code_check(
+        fitted_categorical["model"],
+        fitted_categorical["data"],
+        fitted_categorical["covenants"],
+    )
+    assert record.n_evaluated > 0
+    assert 0.0 <= record.metrics["topk_jaccard"] <= 1.0
+    # true-driver reasons against the fitted model should agree far more
+    # often than chance over three features
+    assert record.metrics["topk_jaccard"] > 0.5
+
+
+def test_custom_reasons_missing_id_fails_loudly(
+    fitted_categorical: dict, tmp_path: Path
+) -> None:
+    from covenant.attribution import DeclaredMethodError
+
+    root = fitted_categorical["root"]
+    reasons = (root / "reasons.csv").read_text().splitlines()
+    (tmp_path / "reasons.csv").write_text("\n".join(reasons[:51]) + "\n")
+    covenants = tmp_path / "covenants.yaml"
+    covenants.write_text((root / "covenants.yaml").read_text())
+    with pytest.raises(DeclaredMethodError, match="no reasons for"):
+        run_reason_code_check(
+            fitted_categorical["model"], fitted_categorical["data"], covenants
+        )

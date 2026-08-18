@@ -1,6 +1,6 @@
 """Build the broken-scorecard demo.
 
-Fits a logistic scorecard on synthetic credit data and writes two
+Part 1 — reason codes (Check 1). Fits a logistic scorecard and writes two
 adverse-action coefficient tables:
 
 * ``coefficients_live.csv`` — derived from the deployed model. Reason codes
@@ -10,6 +10,16 @@ adverse-action coefficient tables:
   failure mode Sei AI describes — the model that issues the decision is
   not the model that produces the reasons — and it is invisible until you
   test for it. ``covenant check reason-codes`` fails it.
+
+Part 2 — monotonicity (Check 2). The true effect of ``loan_amount`` is
+U-shaped, but ``covenants_gbm.yaml`` declares it monotone increasing —
+documentation written for the old linear scorecard. Two gradient-boosted
+models, one covenant:
+
+* ``model_gbm_unconstrained.joblib`` — learns the U-shape; measured
+  behaviour contradicts the declared direction → breach.
+* ``model_gbm_constrained.joblib`` — fitted with ``monotonic_cst`` matching
+  the covenant; behaves as documented → pass.
 
 Deterministic: fixed seeds throughout, so CI can assert on exit codes.
 """
@@ -21,6 +31,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -56,6 +67,9 @@ def make_data(rng: np.random.Generator) -> pd.DataFrame:
     )
 
     z = (df - df.mean()) / df.std()
+    # loan_amount's true effect is U-shaped: very small and very large loans
+    # are risky. A linear scorecard averages it away; a GBM learns it — and
+    # then contradicts documentation that declares the feature monotone.
     logit = (
         -1.1
         - 0.9 * z["income"]
@@ -65,6 +79,7 @@ def make_data(rng: np.random.Generator) -> pd.DataFrame:
         + 0.45 * z["inquiries_6m"]
         - 0.5 * z["age_of_oldest_line_months"]
         + 0.25 * z["loan_amount"]
+        + 0.6 * (z["loan_amount"] ** 2 - 1)
         - 0.35 * z["employment_years"]
         + rng.normal(0, 0.9, N)
     )
@@ -111,8 +126,27 @@ def main() -> None:
     stale.loc["utilization", "coef"] = 0.0
     stale.reset_index().to_csv(HERE / "coefficients_stale.csv", index=False)
 
+    # Part 2: two GBMs against one covenant that declares every direction.
+    directions = {
+        "income": -1,
+        "dti": 1,
+        "utilization": 1,
+        "delinquencies_24m": 1,
+        "inquiries_6m": 1,
+        "age_of_oldest_line_months": -1,
+        "loan_amount": 1,  # the covenant's claim; the true effect is U-shaped
+        "employment_years": -1,
+    }
+    unconstrained = HistGradientBoostingClassifier(random_state=SEED)
+    unconstrained.fit(X, y)
+    joblib.dump(unconstrained, HERE / "model_gbm_unconstrained.joblib")
+
+    constrained = HistGradientBoostingClassifier(random_state=SEED, monotonic_cst=directions)
+    constrained.fit(X, y)
+    joblib.dump(constrained, HERE / "model_gbm_constrained.joblib")
+
     denied = (model.predict_proba(X)[:, 1] >= 0.5).mean()
-    print(f"wrote model.joblib, train.csv and both coefficient tables to {HERE}")
+    print(f"wrote model.joblib, both GBMs, train.csv and coefficient tables to {HERE}")
     print(f"denial rate at threshold 0.5: {denied:.1%}")
 
 

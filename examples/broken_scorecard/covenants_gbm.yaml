@@ -1,0 +1,43 @@
+# One covenant, two models. The declared directions were written for the old
+# linear scorecard; loan_amount's true effect is U-shaped. The unconstrained
+# GBM learns the U-shape and breaches; the constrained GBM is forced to
+# behave as documented and passes.
+covenant_schema: 1
+model_name: demo-gbm
+features:
+  - name: income
+    dtype: numeric
+    direction: decreases_risk
+  - name: dti
+    dtype: numeric
+    direction: increases_risk
+  - name: utilization
+    dtype: numeric
+    direction: increases_risk
+  - name: delinquencies_24m
+    dtype: numeric
+    direction: increases_risk
+  - name: inquiries_6m
+    dtype: numeric
+    direction: increases_risk
+  - name: age_of_oldest_line_months
+    dtype: numeric
+    direction: decreases_risk
+  - name: loan_amount
+    dtype: numeric
+    direction: increases_risk
+  - name: employment_years
+    dtype: numeric
+    direction: decreases_risk
+excluded:
+  - name: gender
+    reason: protected attribute (ECOA / not collected)
+reason_codes:
+  # production would send Shapley-based reasons; not exercised in this demo
+  method: shapley
+  top_k: 4
+checks:
+  monotonicity:
+    max_violation_rate: 0.05
+    n_pairs: 300
+    n_ice_rows: 30

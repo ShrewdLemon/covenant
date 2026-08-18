@@ -12,6 +12,8 @@ htmlcov/
 
 # generated demo artifacts (recreate with make_demo.py)
 examples/broken_scorecard/model.joblib
+examples/broken_scorecard/model_gbm_unconstrained.joblib
+examples/broken_scorecard/model_gbm_constrained.joblib
 examples/broken_scorecard/train.csv
 examples/broken_scorecard/coefficients_live.csv
 examples/broken_scorecard/coefficients_stale.csv

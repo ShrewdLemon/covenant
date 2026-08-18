@@ -18,7 +18,7 @@ import datetime as dt
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -38,6 +38,15 @@ class FeatureCovenant(StrictModel):
     dtype: Literal["numeric", "categorical"] = "numeric"
     direction: Direction = Direction.NONE
     description: str | None = None
+
+    @model_validator(mode="after")
+    def _categorical_has_no_direction(self) -> FeatureCovenant:
+        if self.dtype == "categorical" and self.direction is not Direction.NONE:
+            raise ValueError(
+                f"feature {self.name!r}: a monotone direction on a categorical "
+                "feature is not testable; use direction: none"
+            )
+        return self
 
 
 class ExcludedVariable(StrictModel):
@@ -74,11 +83,34 @@ class ReasonCodeCheckConfig(StrictModel):
     decision_threshold: float = Field(default=0.5, gt=0.0, lt=1.0)
     max_denied_sample: int = Field(default=500, ge=10)
     background_size: int = Field(default=200, ge=10)
+    id_column: str | None = Field(
+        default=None,
+        description="Stable row key joining the data to a custom reasons file. "
+        "Required when reason_codes.method is custom: positional alignment "
+        "breaks silently the moment one row is filtered upstream.",
+    )
+    random_state: int = 0
+
+
+class MonotonicityCheckConfig(StrictModel):
+    """Thresholds for Check 2. Violation rates are measured on synthetic
+    dominance pairs and ICE paths; the threshold is the user's policy."""
+
+    max_violation_rate: float = Field(default=0.05, ge=0.0, le=1.0)
+    n_pairs: int = Field(default=300, ge=10)
+    n_ice_rows: int = Field(default=30, ge=5)
+    ice_grid_points: int = Field(default=9, ge=3)
+    tolerance: float = Field(
+        default=1e-4,
+        ge=0.0,
+        description="Probability moves smaller than this do not count as violations.",
+    )
     random_state: int = 0
 
 
 class ChecksConfig(StrictModel):
     reason_codes: ReasonCodeCheckConfig = Field(default_factory=ReasonCodeCheckConfig)
+    monotonicity: MonotonicityCheckConfig = Field(default_factory=MonotonicityCheckConfig)
 
 
 class ModelCovenants(StrictModel):
@@ -86,6 +118,11 @@ class ModelCovenants(StrictModel):
 
     covenant_schema: Literal[1] = 1
     model_name: str = Field(min_length=1, pattern=r"^[A-Za-z0-9._-]+$")
+    positive_class: int | str | None = Field(
+        default=None,
+        description="Label of the bad/default class as it appears in the "
+        "estimator's classes_. Defaults to the class at index 1.",
+    )
     features: list[FeatureCovenant] = Field(min_length=1)
     excluded: list[ExcludedVariable] = Field(default_factory=list)
     reason_codes: ReasonCodePolicy
@@ -100,8 +137,27 @@ class ModelCovenants(StrictModel):
             raise ValueError(f"duplicate feature names: {sorted(dupes)}")
         return v
 
+    @model_validator(mode="after")
+    def _custom_reasons_need_id_column(self) -> ModelCovenants:
+        if (
+            self.reason_codes.method is ReasonCodeMethod.CUSTOM
+            and not self.checks.reason_codes.id_column
+        ):
+            raise ValueError(
+                "reason_codes.method: custom requires checks.reason_codes."
+                "id_column — reasons must join the data on a stable key, "
+                "not on row position"
+            )
+        return self
+
     def feature_names(self) -> list[str]:
         return [f.name for f in self.features]
+
+    def categorical_features(self) -> list[str]:
+        return [f.name for f in self.features if f.dtype == "categorical"]
+
+    def declared_directions(self) -> dict[str, Direction]:
+        return {f.name: f.direction for f in self.features}
 
 
 class Owner(StrictModel):
