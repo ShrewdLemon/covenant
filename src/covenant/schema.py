@@ -223,15 +223,16 @@ class ModelCovenants(StrictModel):
         return v
 
     @model_validator(mode="after")
-    def _custom_reasons_need_id_column(self) -> ModelCovenants:
+    def _artefact_methods_need_id_column(self) -> ModelCovenants:
+        needs_id = (ReasonCodeMethod.CUSTOM, ReasonCodeMethod.SHAPLEY)
         if (
-            self.reason_codes.method is ReasonCodeMethod.CUSTOM
+            self.reason_codes.method in needs_id
             and not self.checks.reason_codes.id_column
         ):
             raise ValueError(
-                "reason_codes.method: custom requires checks.reason_codes."
-                "id_column — reasons must join the data on a stable key, "
-                "not on row position"
+                f"reason_codes.method: {self.reason_codes.method.value} reads a "
+                "production artefact and requires checks.reason_codes.id_column "
+                "— rows must join on a stable key, not on row position"
             )
         return self
 

@@ -1,6 +1,41 @@
 # Changelog
 
-## 0.2.0 — unreleased
+## 0.3.0 — unreleased
+
+### Added
+- **Check 3 — features** (`covenant check features`): declared vs
+  actually-used features. Undocumented model inputs and documented-but-unseen
+  features breach; documented features with measurably zero attribution are
+  surfaced as warnings.
+- **Check 4 — exclusions** (`covenant check exclusions`): an excluded
+  variable that still reaches the model must show ≈ 0 attribution; every
+  excluded variable is screened for association (|Spearman|, correlation
+  ratio, bias-corrected Cramér's V) against used features. Proxies are
+  surfaced, not proven absent.
+- **`covenant report`**: deterministic validation report — discrimination,
+  calibration, stability (PSI/CSI vs holdout), drift by time slice, the
+  monotonicity verdict, and an out-of-fold logistic challenger's lift, all
+  with seeded bootstrap CIs. Byte-identical on re-render; embeds its own
+  hash and each figure's hash; every section carries a "Maps to" line.
+  CI proves the byte-identity claim with a double render and `diff -r`.
+- All five Krivorotov & Richey declared reason-code methods:
+  `most_points_lost` (scorecard points tables), `univariate` (bin-level
+  score tables), and `shapley` (production attribution exports joined on
+  `id_column`) join the existing `difference_from_mean` and `custom`.
+- Exact attribution fast paths: closed-form contributions for logistic
+  models and scaler pipelines ("linear-exact"), TreeExplainer for bare tree
+  ensembles ("tree-shap"), permutation SHAP as the universal fallback —
+  every check record names the path that produced its measured side.
+- Placebo sub-check in Check 1 (K&R): shuffle a measurably irrelevant
+  feature and report how much each side's top-k moves; flagged as noisy
+  above a threshold, recorded but never a breach on its own.
+- `covenant.metrics`: dependency-light AUC/KS/Gini/Brier/ECE/PSI/CSI with
+  seeded percentile-bootstrap CIs and a paired bootstrap for challenger
+  deltas.
+- `docs/MAPPING.md` (regulatory mapping with honesty markers), SECURITY.md,
+  CONTRIBUTING.md, CITATION.cff, `py.typed`.
+
+## 0.2.0 — 2026-08-18 (git only; superseded by 0.3.0 before publishing)
 
 ### Added
 - **Check 2 — monotonicity** (`covenant check monotonicity`): declared vs

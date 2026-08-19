@@ -41,3 +41,14 @@ checks:
     decision_threshold: 0.5
     max_denied_sample: 120
     background_size: 60
+  features:
+    sample_size: 200
+    background_size: 60
+  exclusions:
+    max_association: 0.5
+    sample_size: 200
+    background_size: 60
+report:
+  target_column: bad
+  time_column: application_month
+  n_bootstrap: 300

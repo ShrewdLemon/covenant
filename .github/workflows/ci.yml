@@ -63,6 +63,17 @@ jobs:
       - name: Constrained GBM must pass monotonicity
         working-directory: examples/broken_scorecard
         run: covenant check monotonicity model_gbm_constrained.joblib train.csv --covenants covenants_gbm.yaml
+      - name: Checks 3 and 4 must pass on the clean scorecard
+        working-directory: examples/broken_scorecard
+        run: |
+          covenant check features model.joblib train.csv --covenants covenants_fixed.yaml
+          covenant check exclusions model.joblib train.csv --covenants covenants_fixed.yaml
+      - name: Report renders byte-identically twice
+        working-directory: examples/broken_scorecard
+        run: |
+          covenant report model.joblib train.csv --covenants covenants_fixed.yaml --out report_a
+          covenant report model.joblib train.csv --covenants covenants_fixed.yaml --out report_b
+          diff -r report_a report_b
       - name: Register and diff both versions
         working-directory: examples/broken_scorecard
         run: |

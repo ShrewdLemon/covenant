@@ -41,12 +41,14 @@ for it. That test is Covenant's Check 1.
 | Piece | State |
 |---|---|
 | `covenant register` / `diff` / `show` / `list` — content-addressed inventory | ✅ shipped |
-| Check 1 `reason-codes` — declared adverse-action reasons vs measured attributions | ✅ shipped |
+| Check 1 `reason-codes` — declared adverse-action reasons vs measured attributions, with placebo sub-check | ✅ shipped |
 | Check 2 `monotonicity` — declared vs configured vs empirical directions | ✅ shipped |
+| Check 3 `features` — declared vs actually-used features | ✅ shipped |
+| Check 4 `exclusions` — exclusions honoured, obvious proxies surfaced | ✅ shipped |
 | `covenant check all` — combined gate | ✅ shipped |
-| Check 3 `features` / Check 4 `exclusions` & proxy screen | ⏳ next |
-| Declared methods `most_points_lost`, `univariate`, B-Shap; placebo sub-check | ⏳ planned |
-| `covenant report` — deterministic, SR 26-2 / FREE-AI-mapped validation report | ⏳ planned (v0.3) |
+| All five K&R declared methods (`difference_from_mean`, `most_points_lost`, `univariate`, `shapley` export, `custom`) | ✅ shipped |
+| Exact attribution fast paths (linear-exact, tree-shap) with the path named in every record | ✅ shipped |
+| `covenant report` — deterministic validation report, mapped to SR 26-2 / FREE-AI ([docs/MAPPING.md](docs/MAPPING.md)) | ✅ shipped |
 
 ## What it does
 
@@ -84,12 +86,35 @@ swept over the feature's quantiles). Violation rates per feature against a
 threshold you set; a configured constraint that contradicts the covenant is
 a breach on its own.
 
+**`covenant check features`** — Check 3. Are the declared features the used
+features? A feature the model reads but the covenant never mentions is a
+breach; so is a documented feature the model cannot see. Documented features
+with measurably zero attribution are surfaced as warnings — dead
+documentation, not a behavioural contradiction.
+
+**`covenant check exclusions`** — Check 4. Excluded variables are testable
+claims too: if one still reaches the model, its measured attribution must be
+≈ 0; and every excluded variable is screened for association (|Spearman|,
+correlation ratio, bias-corrected Cramér's V) against the used features.
+Proxies are **surfaced, not proven absent** — the check says exactly that.
+
 **`covenant check all`** — every configured check, one summary, one combined
 exit code for CI.
 
-Check records are replayable: identical inputs produce byte-identical,
-hash-addressed records at the same path, and run timestamps live in an
-append-only `runs.log` beside them.
+**`covenant report`** — the deterministic validation report: discrimination
+(AUC/Gini/KS), calibration (Brier/ECE), stability (PSI/CSI vs a holdout),
+drift by time slice, the monotonicity check's verdict, and a plain logistic
+challenger's lift — every point estimate with a bootstrap confidence
+interval, every section mapped to the regulatory ask, and the whole thing
+rendered byte-identically from the same inputs. The report embeds its own
+hash and each figure's hash, so it is citable evidence years later.
+
+The measured side names its method: linear models get closed-form exact
+contributions, tree ensembles get TreeExplainer, everything else falls back
+to permutation SHAP — and every check record states which path produced its
+numbers. Check records are replayable: identical inputs produce
+byte-identical, hash-addressed records at the same path, and run timestamps
+live in an append-only `runs.log` beside them.
 
 ## Quickstart
 
@@ -178,19 +203,14 @@ are themselves tested on every commit.
 
 ## Roadmap
 
-- `covenant check features` / `check exclusions` — declared vs used
-  features; excluded variables and their obvious proxies (association
-  screen — surfacing proxies, not proving absence).
-- `covenant report` — discrimination, calibration, stability, drift and a
-  logistic challenger's lift, bootstrap CIs, rendered deterministically
-  (same inputs → same bytes) and mapped line-by-line to SR 26-2 / FREE-AI,
-  plus `docs/MAPPING.md`.
-- Declared-method coverage: `most_points_lost` (scorecards), `univariate`,
-  B-Shap; placebo perturbation sub-check.
-- Exact attribution fast paths: LinearExplainer for linear pipelines,
-  TreeExplainer for tree ensembles, EBM shape functions — permutation SHAP
-  stays as the model-agnostic fallback, and the record names the path used.
-- Adapters: OptBinning `Scorecard`, InterpretML EBM.
+- Adapters: OptBinning `Scorecard` (native points tables for
+  `most_points_lost`), InterpretML EBM (exact shape-function contributions
+  instead of SHAP).
+- `skops` loading as the recommended safe serialization path.
+- Recourse validity (does following the reason code actually flip the
+  decision?), robustness/resilience and fairness — deferred to the tools
+  that already do them well (DiCE/CARLA, PiML, Fairlearn/SolasAI).
+- mkdocs documentation site.
 
 ## License
 

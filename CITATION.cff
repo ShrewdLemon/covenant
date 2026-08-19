@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Covenant"
+version: 0.3.0
+authors:
+  - name: "Punarbasu"
+    email: "punarbasuu@gmail.com"
+repository-code: "https://github.com/ShrewdLemon/covenant"
+license: Apache-2.0
+keywords:
+  - model risk
+  - credit risk
+  - governance
+  - adverse action
+  - explainability
+abstract: >-
+  Covenant is pytest for credit-model governance. Its one original idea is
+  that a model's documentation is a set of testable claims about its
+  behaviour, so it tests them: git-native covenants recording a credit
+  model's declared features, monotone directions, exclusions and reason-code
+  method, and CI checks that fail when measured behaviour contradicts the
+  claims. Covenant produces evidence; validators and auditors decide.
