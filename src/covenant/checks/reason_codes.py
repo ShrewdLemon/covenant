@@ -218,14 +218,16 @@ def _placebo_subcheck(
     every declared feature carries real attribution.
     """
     mean_abs = attributions.abs().mean()
-    candidates = mean_abs[mean_abs < config.placebo_epsilon]
+    total_mass = float(mean_abs.sum())
+    shares = mean_abs / total_mass if total_mass > 0 else mean_abs
+    candidates = shares[shares < config.placebo_epsilon]
     if candidates.empty:
         return {
             "skipped": True,
             "reason": (
-                "no declared feature has mean |attribution| below "
-                f"{config.placebo_epsilon}; nothing is irrelevant enough to "
-                "serve as a placebo"
+                "no declared feature holds less than "
+                f"{config.placebo_epsilon:g} of the total attribution mass; "
+                "nothing is irrelevant enough to serve as a placebo"
             ),
         }
     feature = str(candidates.idxmin())

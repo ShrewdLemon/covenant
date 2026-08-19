@@ -108,3 +108,30 @@ class TestAssociationDispatch:
         binary = pd.Series((rng.uniform(size=500) < 0.5).astype(int))
         _, method = association(binary, pd.Series(rng.normal(size=500)))
         assert method == "spearman_abs"
+
+
+def test_correlation_ratio_drops_infinite_pairs() -> None:
+    """An inf value must not turn a perfect proxy into NaN (review finding)."""
+    import numpy as np
+    import pandas as pd
+
+    from covenant.association import correlation_ratio
+
+    cats = pd.Series(["a"] * 50 + ["b"] * 50)
+    vals = pd.Series([0.0] * 50 + [10.0] * 50)
+    vals.iloc[3] = np.inf
+    eta = correlation_ratio(cats, vals)
+    assert not np.isnan(eta)
+    assert eta > 0.95
+
+
+def test_spearman_abs_finite_with_inf() -> None:
+    import numpy as np
+    import pandas as pd
+
+    from covenant.association import spearman_abs
+
+    x = pd.Series(np.arange(100, dtype=float))
+    y = x.copy()
+    y.iloc[7] = np.inf
+    assert 0.0 <= spearman_abs(x, y) <= 1.0

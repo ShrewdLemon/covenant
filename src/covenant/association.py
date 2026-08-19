@@ -36,19 +36,19 @@ from scipy import stats
 
 
 def _paired_floats(x: ArrayLike, y: ArrayLike) -> tuple[np.ndarray, np.ndarray]:
-    """Two equal-length float vectors with NaN pairs dropped."""
+    """Two equal-length float vectors with non-finite pairs dropped."""
     xf = np.asarray(x, dtype=float).ravel()
     yf = np.asarray(y, dtype=float).ravel()
     if len(xf) != len(yf):
         raise ValueError(f"length mismatch: {len(xf)} vs {len(yf)}")
-    keep = ~(np.isnan(xf) | np.isnan(yf))
+    keep = np.isfinite(xf) & np.isfinite(yf)
     return xf[keep], yf[keep]
 
 
 def spearman_abs(x: ArrayLike, y: ArrayLike) -> float:
     """|Spearman's rho| for a numeric-numeric pair, in [0, 1].
 
-    NaN pairs are dropped; constant or too-short input returns 0.0 rather
+    Non-finite pairs are dropped; constant or too-short input returns 0.0 rather
     than NaN (no ranking exists, so no monotone association is evidenced).
     """
     xf, yf = _paired_floats(x, y)
@@ -64,14 +64,14 @@ def correlation_ratio(categories: ArrayLike, values: ArrayLike) -> float:
     """Correlation ratio eta for a categorical-numeric pair, in [0, 1].
 
     eta is the square root of eta-squared, the share of the numeric
-    variance explained by the category means. NaN pairs are dropped;
+    variance explained by the category means. Non-finite pairs are dropped;
     constant values or a single category return 0.0.
     """
     cats = pd.Series(list(np.asarray(categories, dtype=object).ravel()))
     vals = np.asarray(values, dtype=float).ravel()
     if len(cats) != len(vals):
         raise ValueError(f"length mismatch: {len(cats)} vs {len(vals)}")
-    keep = ~(cats.isna().to_numpy() | np.isnan(vals))
+    keep = cats.notna().to_numpy() & np.isfinite(vals)
     cats, vals = cats[keep], vals[keep]
     if len(vals) < 2:
         return 0.0

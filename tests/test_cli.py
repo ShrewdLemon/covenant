@@ -218,3 +218,63 @@ def test_check_all_combined_exit_code(fitted: dict, tmp_path: Path) -> None:
     assert "reason-codes" in result.output
     assert "BREACH" in result.output
     assert "monotonicity" in result.output
+
+
+def test_check_all_skips_broken_artefact_and_still_runs_rest(
+    fitted: dict, tmp_path: Path
+) -> None:
+    """A missing reason-code artefact must skip check 1, not abort checks 2-4
+    (review finding)."""
+    covenants = tmp_path / "covenants.yaml"
+    covenants.write_text(
+        fitted["covenants"].read_text().replace("coefficients_live.csv", "missing.csv")
+    )
+    result = runner.invoke(
+        app,
+        [
+            "check",
+            "all",
+            str(fitted["model"]),
+            str(fitted["data"]),
+            "--covenants",
+            str(covenants),
+            "--store",
+            str(tmp_path / ".covenant"),
+        ],
+    )
+    out = combined_output(result)
+    assert "reason-codes   SKIPPED" in out
+    assert "monotonicity" in out and "PASS" in out
+    assert result.exit_code == 0, out  # remaining checks all pass
+
+
+def test_check_all_exits_2_when_nothing_ran(fitted: dict, tmp_path: Path) -> None:
+    """A gate that checks nothing must not pass (review finding)."""
+    covenants = tmp_path / "covenants.yaml"
+    text = fitted["covenants"].read_text()
+    text = text.replace("coefficients_live.csv", "missing.csv")
+    for direction in ("increases_risk", "decreases_risk"):
+        text = text.replace(f"direction: {direction}", "direction: none")
+    text = text.replace("excluded:\n  - {name: gender, reason: protected attribute}\n", "")
+    covenants.write_text(text)
+    result = runner.invoke(
+        app,
+        [
+            "check",
+            "all",
+            str(fitted["model"]),
+            str(fitted["data"]),
+            "--covenants",
+            str(covenants),
+            "--store",
+            str(tmp_path / ".covenant"),
+        ],
+    )
+    out = combined_output(result)
+    # reason-codes (missing artefact), monotonicity (no directions) and
+    # exclusions (no excluded vars) are skipped; features may still run.
+    assert "SKIPPED" in out
+    if "features" in out and "PASS" in out:
+        assert result.exit_code in (0, 1)
+    else:
+        assert result.exit_code == 2

@@ -280,3 +280,39 @@ def test_bootstrap_rejects_bad_params() -> None:
         paired_bootstrap_diff(roc_auc, y, p, p, n_boot=0)
     with pytest.raises(ValueError, match="different lengths"):
         paired_bootstrap_diff(roc_auc, y, p, p[:-1])
+
+
+class TestReviewRegressions:
+    """Locks for defects found in the v0.3 adversarial review."""
+
+    def test_psi_detects_binary_flip(self) -> None:
+        from covenant.metrics import psi
+
+        value = psi([0] * 55 + [1] * 45, [0] * 5 + [1] * 95)
+        assert value == pytest.approx(1.5726, abs=1e-3)
+        for n in (100, 200, 1000):
+            assert psi([0] * (n // 2 + 5) + [1] * (n // 2 - 5), [0] * 5 + [1] * (n - 5)) > 0.5
+
+    def test_psi_zero_inflated_shift_detected(self) -> None:
+        from covenant.metrics import psi
+
+        expected = [0.0] * 95 + [1.0, 2.0, 3.0, 4.0, 5.0]
+        actual = [5.0] * 100
+        assert psi(expected, actual) > 1.0
+
+    def test_psi_constant_baseline_measures_total_shift(self) -> None:
+        from covenant.metrics import psi
+
+        assert psi([1.0] * 100, [1.0] * 100) == 0.0
+        assert psi([1.0] * 100, [2.0] * 100) > 10.0  # total shift, loud
+
+    def test_csi_covers_low_cardinality_features(self) -> None:
+        import pandas as pd
+
+        from covenant.metrics import csi
+
+        expected = pd.DataFrame({"flag": [0.0] * 30 + [1.0] * 20, "x": list(range(50))})
+        actual = pd.DataFrame({"flag": [1.0] * 50, "x": list(range(50))})
+        values = csi(expected, actual, ["flag", "x"])
+        assert values["flag"] > 0.5
+        assert values["x"] == pytest.approx(0.0, abs=1e-9)

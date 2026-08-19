@@ -156,3 +156,13 @@ def test_check_is_deterministic(tmp_path: Path) -> None:
     b = run_exclusions_check(*paths)
     assert a.record_sha256 == b.record_sha256
     assert not a.passed  # proxy flag and attribution breach both present
+
+
+def test_model_input_missing_from_snapshot_is_setup_error(tmp_path: Path) -> None:
+    """An excluded variable the model reads but the snapshot omits must be a
+    hard setup error, never a silent 'absent' pass (review finding)."""
+    from covenant.checks.reason_codes import CheckSetupError
+
+    paths = _fixture(tmp_path, fit_on_gender=True, gender_in_snapshot=False)
+    with pytest.raises(CheckSetupError, match="gender"):
+        run_exclusions_check(*paths)

@@ -157,3 +157,24 @@ def test_missing_target_column_is_setup_error(report_assets: dict, tmp_path: Pat
             report_assets["covenants_no_target"],
             tmp_path / "out",
         )
+
+
+def test_report_bytes_independent_of_path_spelling(
+    report_assets: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The rendered bytes must not depend on how the input paths were spelled
+    (review finding: the footer used to embed the paths verbatim)."""
+    absolute = build_report(
+        report_assets["model"],
+        report_assets["data"],
+        report_assets["covenants"],
+        tmp_path / "abs",
+    )
+    monkeypatch.chdir(report_assets["model"].parent)
+    relative = build_report(
+        report_assets["model"].name,
+        report_assets["data"].name,
+        report_assets["covenants"].name,
+        tmp_path / "rel",
+    )
+    assert absolute.read_bytes() == relative.read_bytes()

@@ -133,10 +133,15 @@ def ece(y: ArrayLike, p: ArrayLike, n_bins: int = 10) -> float:
 def psi(expected: ArrayLike, actual: ArrayLike, n_bins: int = 10) -> float:
     """Population stability index of ``actual`` against ``expected``.
 
-    Bin edges come from the quantiles of ``expected`` (duplicate edges
-    are collapsed, so low-cardinality columns get fewer, wider bins);
-    the outermost bins are open-ended, so actual values outside the
-    expected range still land in a bin. Proportions are clipped to
+    When ``expected`` has more than ``n_bins`` distinct values, bin edges
+    come from its interior quantiles (duplicates collapsed, outer bins
+    open-ended so actual values outside the expected range still land in a
+    bin). When it has ``n_bins`` or fewer distinct values — binary flags,
+    zero-inflated counts, constant columns — quantile edges cannot separate
+    the mass points reliably, so PSI is computed at value level over the
+    union of the values seen in either sample: every distinct value is its
+    own bin, and a shift between values (or to an unseen value) is measured
+    instead of vanishing into a single bin. Proportions are clipped to
     ``PSI_PROPORTION_FLOOR`` before the log, then the standard
     ``sum((a - e) * ln(a / e))`` is returned.
     """
@@ -144,11 +149,19 @@ def psi(expected: ArrayLike, actual: ArrayLike, n_bins: int = 10) -> float:
     a_arr = _validate_sample(actual, "actual")
     if n_bins < 2:
         raise ValueError(f"n_bins must be >= 2, got {n_bins}")
-    edges = np.unique(np.quantile(e_arr, np.linspace(0.0, 1.0, n_bins + 1)))
-    inner = edges[1:-1]  # outer bins open-ended; a constant column degenerates to one bin
-    n_effective_bins = len(inner) + 1
-    e_prop = np.bincount(np.searchsorted(inner, e_arr, side="right"), minlength=n_effective_bins)
-    a_prop = np.bincount(np.searchsorted(inner, a_arr, side="right"), minlength=n_effective_bins)
+    if np.unique(e_arr).size <= n_bins:
+        values = np.unique(np.concatenate([e_arr, a_arr]))
+        e_prop = np.bincount(np.searchsorted(values, e_arr), minlength=len(values))
+        a_prop = np.bincount(np.searchsorted(values, a_arr), minlength=len(values))
+    else:
+        inner = np.unique(np.quantile(e_arr, np.linspace(0.0, 1.0, n_bins + 1))[1:-1])
+        n_effective_bins = len(inner) + 1
+        e_prop = np.bincount(
+            np.searchsorted(inner, e_arr, side="right"), minlength=n_effective_bins
+        )
+        a_prop = np.bincount(
+            np.searchsorted(inner, a_arr, side="right"), minlength=n_effective_bins
+        )
     e_clip = np.clip(e_prop / len(e_arr), PSI_PROPORTION_FLOOR, None)
     a_clip = np.clip(a_prop / len(a_arr), PSI_PROPORTION_FLOOR, None)
     return float(np.sum((a_clip - e_clip) * np.log(a_clip / e_clip)))
