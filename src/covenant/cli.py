@@ -107,8 +107,8 @@ def register(
 
 def _run_check(runner, model: Path, data: Path, covenants: Path, overrides: dict | None):
     """Run a check callable, mapping known failures to exit 2."""
-    from covenant.attribution import DeclaredMethodError
     from covenant.checks.reason_codes import CheckSetupError
+    from covenant.declared import DeclaredMethodError
     from covenant.registry import RegistrationError
 
     try:

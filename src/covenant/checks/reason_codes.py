@@ -17,13 +17,13 @@ from pathlib import Path
 import numpy as np
 
 from covenant.attribution import (
-    declared_reason_sets,
     measured_attributions,
     sample_background,
     top_1,
     top_k_sets,
 )
 from covenant.checks.base import CheckRecord
+from covenant.declared import declared_reason_sets
 from covenant.hashing import sha256_canonical, sha256_dataframe, sha256_file
 from covenant.model import CovenantModel, load_model
 from covenant.registry import load_covenants, load_data
