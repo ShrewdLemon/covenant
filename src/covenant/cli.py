@@ -219,6 +219,8 @@ def check_all(
     from covenant.checks.features import run_features_check
     from covenant.checks.monotonicity import run_monotonicity_check
     from covenant.checks.reason_codes import CheckSetupError, run_reason_code_check
+    from covenant.declared import DeclaredMethodError
+    from covenant.registry import RegistrationError
 
     runners = [
         ("reason-codes", run_reason_code_check, _summary_reason_codes),
@@ -227,13 +229,15 @@ def check_all(
         ("exclusions", run_exclusions_check, _summary_exclusions),
     ]
     worst_exit = 0
+    n_ran = 0
     lines = []
     for name, runner, summarise in runners:
         try:
             record = runner(model, data, covenants, None)
-        except CheckSetupError as err:
+        except (CheckSetupError, DeclaredMethodError, RegistrationError, FileNotFoundError) as err:
             lines.append(f"  {name:<14s} SKIPPED  {err}")
             continue
+        n_ran += 1
         record.write(Store(store))
         verdict = "PASS  " if record.passed else "BREACH"
         lines.append(f"  {name:<14s} {verdict}  {summarise(record)}")
@@ -242,6 +246,13 @@ def check_all(
     typer.echo("covenant check all")
     for line in lines:
         typer.echo(line)
+    if n_ran == 0:
+        typer.echo(
+            "error: no check could run — a gate that checks nothing must not "
+            "pass; fix the setup errors above",
+            err=True,
+        )
+        raise typer.Exit(2)
     raise typer.Exit(worst_exit)
 
 

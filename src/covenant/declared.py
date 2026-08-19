@@ -92,7 +92,10 @@ def _difference_from_mean(
             "feature,coef[,mean][,scale] for method difference_from_mean"
         )
     table_path = _resolve(table_ref, covenants_dir)
-    table = pd.read_csv(table_path)
+    try:
+        table = pd.read_csv(table_path)
+    except FileNotFoundError as err:
+        raise DeclaredMethodError(f"reason-code artefact not found: {table_path}") from err
     if "feature" not in table.columns or "coef" not in table.columns:
         raise DeclaredMethodError(
             f"{table_path} needs columns feature,coef[,mean][,scale]"
@@ -107,6 +110,12 @@ def _difference_from_mean(
     coef = table["coef"].to_numpy(dtype=float)
     mean = table.get("mean", pd.Series(0.0, index=table.index)).to_numpy(dtype=float)
     scale = table.get("scale", pd.Series(1.0, index=table.index)).to_numpy(dtype=float)
+    for name, arr in (("coef", coef), ("mean", mean), ("scale", scale)):
+        if np.isnan(arr).any():
+            bad = [f for f, isnan in zip(table.index, np.isnan(arr), strict=True) if isnan]
+            raise DeclaredMethodError(
+                f"{table_path}: column {name!r} has empty cells for features {bad}"
+            )
     try:
         values_matrix = X.to_numpy(dtype=float)
     except (TypeError, ValueError) as err:
@@ -135,7 +144,10 @@ def _read_bin_table(
             f"{schema_hint} for method {policy.method.value}"
         )
     table_path = _resolve(table_ref, covenants_dir)
-    table = pd.read_csv(table_path)
+    try:
+        table = pd.read_csv(table_path)
+    except FileNotFoundError as err:
+        raise DeclaredMethodError(f"reason-code artefact not found: {table_path}") from err
     if "feature" not in table.columns or payload_column not in table.columns:
         raise DeclaredMethodError(f"{table_path} needs columns {schema_hint}")
     return table, table_path
@@ -194,6 +206,12 @@ def _matched_bin_values(
             raise DeclaredMethodError(
                 f"{table_path}: column {payload_column!r} must be numeric"
             ) from err
+        if np.isnan(payload).any():
+            raise DeclaredMethodError(
+                f"{table_path}: feature {col!r} has empty or non-numeric "
+                f"{payload_column!r} cells; every bin needs a numeric "
+                f"{payload_column}"
+            )
         by_feature[col] = payload
         categories = rows[category_column] if has_category else None
         if categories is not None and categories.notna().any():
@@ -219,6 +237,15 @@ def _matched_bin_values(
             raise DeclaredMethodError(
                 f"{table_path}: value {value!r} of feature {col!r} falls in "
                 "no declared bin"
+            )
+        multi = hits.sum(axis=1) > 1
+        if multi.any():
+            raw = X[col].iloc[int(np.argmax(multi))]
+            value = raw.item() if hasattr(raw, "item") else raw
+            raise DeclaredMethodError(
+                f"{table_path}: value {value!r} of feature {col!r} falls in "
+                f"{int(hits[int(np.argmax(multi))].sum())} declared bins; "
+                "bins must be disjoint so the declared reason is unambiguous"
             )
         matched[col] = payload[hits.argmax(axis=1)]
     return matched, by_feature
@@ -301,7 +328,10 @@ def _shapley_attributions(
             f"of {id_column},<one column per feature> for method shapley"
         )
     table_path = _resolve(table_ref, covenants_dir)
-    table = pd.read_csv(table_path)
+    try:
+        table = pd.read_csv(table_path)
+    except FileNotFoundError as err:
+        raise DeclaredMethodError(f"reason-code artefact not found: {table_path}") from err
     if id_column not in table.columns:
         raise DeclaredMethodError(
             f"{table_path} lacks the id column {id_column!r} declared in "
@@ -332,6 +362,11 @@ def _shapley_attributions(
         raise DeclaredMethodError(
             f"{table_path}: attribution columns must be numeric"
         ) from err
+    if np.isnan(values).any():
+        bad = [c for c, isnan in zip(X.columns, np.isnan(values).any(axis=0), strict=True) if isnan]
+        raise DeclaredMethodError(
+            f"{table_path}: attribution columns have empty cells for features {bad}"
+        )
     return pd.DataFrame(values, columns=list(X.columns), index=X.index)
 
 
@@ -350,7 +385,10 @@ def _custom_reasons(
             f"{id_column},reason_1..reason_k for method custom"
         )
     reasons_path = _resolve(reasons_ref, covenants_dir)
-    table = pd.read_csv(reasons_path)
+    try:
+        table = pd.read_csv(reasons_path)
+    except FileNotFoundError as err:
+        raise DeclaredMethodError(f"reason-code artefact not found: {reasons_path}") from err
     if id_column not in table.columns:
         raise DeclaredMethodError(
             f"{reasons_path} lacks the id column {id_column!r} declared in "

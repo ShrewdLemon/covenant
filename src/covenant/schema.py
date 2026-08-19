@@ -85,9 +85,9 @@ class ReasonCodeCheckConfig(StrictModel):
     background_size: int = Field(default=200, ge=10)
     id_column: str | None = Field(
         default=None,
-        description="Stable row key joining the data to a custom reasons file. "
-        "Required when reason_codes.method is custom: positional alignment "
-        "breaks silently the moment one row is filtered upstream.",
+        description="Stable row key joining the data to a production artefact. "
+        "Required when reason_codes.method is custom or shapley: positional "
+        "alignment breaks silently the moment one row is filtered upstream.",
     )
     placebo: bool = Field(
         default=True,
@@ -98,8 +98,9 @@ class ReasonCodeCheckConfig(StrictModel):
     placebo_epsilon: float = Field(
         default=1e-3,
         ge=0.0,
-        description="Mean |attribution| below which a feature counts as "
-        "irrelevant enough to serve as the placebo.",
+        description="Share of total mean |attribution| mass below which a "
+        "feature counts as irrelevant enough to serve as the placebo "
+        "(scale-invariant across attribution paths).",
     )
     max_placebo_shift: float = Field(
         default=0.10,
@@ -133,8 +134,9 @@ class FeaturesCheckConfig(StrictModel):
     dead_feature_epsilon: float = Field(
         default=1e-3,
         ge=0.0,
-        description="Mean |attribution| below which a documented feature is "
-        "flagged as dead (a warning, not a breach).",
+        description="Share of total mean |attribution| mass below which a "
+        "documented feature is flagged as dead (a warning, not a breach). "
+        "Shares are scale-invariant across attribution paths.",
     )
     sample_size: int = Field(default=300, ge=20)
     background_size: int = Field(default=100, ge=10)
@@ -149,7 +151,8 @@ class ExclusionsCheckConfig(StrictModel):
         default=1e-3,
         ge=0.0,
         description="If an excluded variable reaches the model anyway, its "
-        "mean |attribution| must stay below this.",
+        "share of total mean |attribution| mass must stay below this "
+        "(scale-invariant across attribution paths).",
     )
     max_association: float = Field(
         default=0.5,

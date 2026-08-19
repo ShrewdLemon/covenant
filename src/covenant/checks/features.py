@@ -33,7 +33,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from covenant.attribution import measured_attributions, sample_background
+from covenant.attribution import explain, sample_background
 from covenant.checks.base import CheckRecord
 from covenant.checks.reason_codes import CheckSetupError
 from covenant.hashing import sha256_canonical, sha256_dataframe, sha256_file
@@ -102,15 +102,29 @@ def run_features_check(
     attribution_categorical = [c for c in score_features if c in categorical] + [
         c for c in undocumented_used if not pd.api.types.is_numeric_dtype(data[c])
     ]
-    attributions = measured_attributions(
+    attributions, attribution_path = explain(
         model, X, background, attribution_categorical, config.random_state
     )
+    # The dead screen thresholds on each feature's *share* of the total mean
+    # |attribution| mass, not its raw magnitude: shares are invariant to the
+    # attribution path's output scale (linear-exact reports logit-space
+    # numbers, permutation reports probability-space ones), so the epsilon
+    # means the same thing whichever path produced the numbers.
     mean_abs = attributions.abs().mean()
-    dead_features = [
-        {"feature": f, "mean_abs_attribution": round(float(mean_abs[f]), 6)}
-        for f in declared
-        if f in attributions.columns and float(mean_abs[f]) < config.dead_feature_epsilon
-    ]
+    total_mass = float(mean_abs.sum())
+    dead_features = []
+    for f in declared:
+        if f not in attributions.columns:
+            continue
+        share = float(mean_abs[f]) / total_mass if total_mass > 0 else 0.0
+        if share < config.dead_feature_epsilon:
+            dead_features.append(
+                {
+                    "feature": f,
+                    "mean_abs_attribution": round(float(mean_abs[f]), 6),
+                    "attribution_share": round(share, 6),
+                }
+            )
 
     passed = not undocumented_used and not declared_unused
 
@@ -154,6 +168,7 @@ def run_features_check(
             "undocumented_used": undocumented_used,
             "declared_unused": declared_unused,
             "dead_features": dead_features,
+            "attribution_path": attribution_path,
             "structural_available": structural_available,
             "note": note,
         },

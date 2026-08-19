@@ -262,3 +262,56 @@ class TestShapley:
         ids = pd.Series(["A1"])
         with pytest.raises(DeclaredMethodError, match="parameters.attributions_file"):
             declared_reason_sets(policy, X, tmp_path, ids=ids, id_column="app_id")
+
+
+class TestReviewRegressions:
+    """Locks for defects found in the v0.3 adversarial review."""
+
+    def test_empty_points_cell_fails_loudly(self, tmp_path: Path) -> None:
+        (tmp_path / "points.csv").write_text(
+            "feature,bin_lower,bin_upper,points\n"
+            "age,0,10,\n"
+            "age,10,,30\n"
+        )
+        policy = ReasonCodePolicy(
+            method=ReasonCodeMethod.MOST_POINTS_LOST,
+            top_k=1,
+            parameters={"points_table": "points.csv"},
+        )
+        X = pd.DataFrame({"age": [5.0, 15.0]})
+        with pytest.raises(DeclaredMethodError, match="empty or non-numeric"):
+            declared_attributions(policy, X, tmp_path)
+
+    def test_empty_coef_cell_fails_loudly(self, tmp_path: Path) -> None:
+        (tmp_path / "coefficients.csv").write_text("feature,coef\nage,\n")
+        policy = ReasonCodePolicy(
+            method=ReasonCodeMethod.DIFFERENCE_FROM_MEAN,
+            parameters={"coefficients": "coefficients.csv"},
+        )
+        X = pd.DataFrame({"age": [5.0]})
+        with pytest.raises(DeclaredMethodError, match="empty cells"):
+            declared_attributions(policy, X, tmp_path)
+
+    def test_overlapping_bins_fail_loudly(self, tmp_path: Path) -> None:
+        (tmp_path / "points.csv").write_text(
+            "feature,bin_lower,bin_upper,points\n"
+            "age,0,20,10\n"
+            "age,10,30,20\n"
+        )
+        policy = ReasonCodePolicy(
+            method=ReasonCodeMethod.MOST_POINTS_LOST,
+            top_k=1,
+            parameters={"points_table": "points.csv"},
+        )
+        X = pd.DataFrame({"age": [15.0]})
+        with pytest.raises(DeclaredMethodError, match="disjoint"):
+            declared_attributions(policy, X, tmp_path)
+
+    def test_missing_artefact_is_declared_method_error(self, tmp_path: Path) -> None:
+        policy = ReasonCodePolicy(
+            method=ReasonCodeMethod.DIFFERENCE_FROM_MEAN,
+            parameters={"coefficients": "nope.csv"},
+        )
+        X = pd.DataFrame({"age": [5.0]})
+        with pytest.raises(DeclaredMethodError, match="artefact not found"):
+            declared_attributions(policy, X, tmp_path)

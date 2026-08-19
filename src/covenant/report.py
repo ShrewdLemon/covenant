@@ -519,9 +519,12 @@ def _footer_section(
     holdout_path: str | Path | None,
     config_overrides: dict | None,
 ) -> str:
-    command = f"covenant report {model_path} {data_path} --covenants {covenants_path}"
+    command = (
+        f"covenant report {Path(model_path).name} {Path(data_path).name} "
+        f"--covenants {Path(covenants_path).name}"
+    )
     if holdout_path is not None:
-        command += f" --holdout {holdout_path}"
+        command += f" --holdout {Path(holdout_path).name}"
     if config_overrides and config_overrides.get("target_column"):
         command += f" --target {config_overrides['target_column']}"
     lines = [
@@ -531,6 +534,9 @@ def _footer_section(
         command,
         "```",
         "",
+        "The command is written with file basenames so these bytes never depend "
+        "on how the input paths were spelled — run it from the directory holding "
+        "the inputs; the content hashes in section 1, not paths, identify them. "
         "`--out` chooses the destination directory and does not change the "
         "rendered bytes: re-running with the same model, snapshot and covenants "
         "reproduces this file and every figure byte for byte.",

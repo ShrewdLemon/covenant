@@ -46,7 +46,7 @@ for it. That test is Covenant's Check 1.
 | Check 3 `features` — declared vs actually-used features | ✅ shipped |
 | Check 4 `exclusions` — exclusions honoured, obvious proxies surfaced | ✅ shipped |
 | `covenant check all` — combined gate | ✅ shipped |
-| All five K&R declared methods (`difference_from_mean`, `most_points_lost`, `univariate`, `shapley` export, `custom`) | ✅ shipped |
+| All four K&R declared methods (`difference_from_mean`, `most_points_lost`, `univariate`, `shapley` export) plus a production reasons file (`custom`) | ✅ shipped |
 | Exact attribution fast paths (linear-exact, tree-shap) with the path named in every record | ✅ shipped |
 | `covenant report` — deterministic validation report, mapped to SR 26-2 / FREE-AI ([docs/MAPPING.md](docs/MAPPING.md)) | ✅ shipped |
 
@@ -104,15 +104,16 @@ exit code for CI.
 **`covenant report`** — the deterministic validation report: discrimination
 (AUC/Gini/KS), calibration (Brier/ECE), stability (PSI/CSI vs a holdout),
 drift by time slice, the monotonicity check's verdict, and a plain logistic
-challenger's lift — every point estimate with a bootstrap confidence
-interval, every section mapped to the regulatory ask, and the whole thing
-rendered byte-identically from the same inputs. The report embeds its own
-hash and each figure's hash, so it is citable evidence years later.
+challenger's lift — discrimination, calibration and challenger estimates
+carry seeded bootstrap confidence intervals, every section is mapped to the
+regulatory ask, and the whole thing renders byte-identically from the same
+inputs. The report embeds its own hash and each figure's hash, so it is
+citable evidence years later.
 
 The measured side names its method: linear models get closed-form exact
 contributions, tree ensembles get TreeExplainer, everything else falls back
-to permutation SHAP — and every check record states which path produced its
-numbers. Check records are replayable: identical inputs produce
+to permutation SHAP — and every attribution-based check record states which
+path produced its numbers. Check records are replayable: identical inputs produce
 byte-identical, hash-addressed records at the same path, and run timestamps
 live in an append-only `runs.log` beside them.
 
@@ -154,21 +155,22 @@ covenant check reason-codes model.joblib train.csv --covenants covenants_broken.
 ```
 ```text
 check reason-codes — demo-scorecard: BREACH (fail)
-  top-1 agreement  0.500  (threshold 0.75)
+  top-1 agreement  0.492  (threshold 0.75)
   top-k jaccard    0.461  (threshold 0.60)
-  background stability of measured side: 0.880
+  background stability of measured side: 0.877
+  measured via: linear-exact
   n denied evaluated: 120
   by score band (denied applicants, near boundary first):
-    p_bad 0.501-0.596  n=24    top-1 0.542  jaccard 0.467
+    p_bad 0.500-0.577  n=24    top-1 0.333  jaccard 0.478
     ...
   worst disagreements (declared vs measured):
-    row 15     p_bad 0.943  declared age_of_oldest_line_months, delinquencies_24m, ...
+    row 280    p_bad 0.952  declared age_of_oldest_line_months, employment_years, ...
   record: .covenant/checks/demo-scorecard/reason-codes-….yaml
 # exit code 1
 ```
 ```bash
 covenant check reason-codes model.joblib train.csv --covenants covenants_fixed.yaml
-# PASS — top-1 0.983, jaccard 0.943, exit code 0
+# PASS — top-1 0.975, jaccard 0.940, exit code 0
 ```
 
 The same demo carries the monotonicity story: the true effect of

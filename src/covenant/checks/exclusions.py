@@ -30,7 +30,7 @@ from pathlib import Path
 import pandas as pd
 
 from covenant.association import association
-from covenant.attribution import measured_attributions, sample_background
+from covenant.attribution import explain, sample_background
 from covenant.checks.base import CheckRecord
 from covenant.checks.reason_codes import CheckSetupError
 from covenant.hashing import sha256_canonical, sha256_dataframe, sha256_file
@@ -73,14 +73,20 @@ def run_exclusions_check(
     model_inputs = None if raw_inputs is None else [str(c) for c in raw_inputs]
 
     # Where each excluded variable stands relative to the model's inputs.
-    # feature_names_in_ is authoritative when present; the declared feature
-    # list stands in when it is not; with neither, usage is unverifiable.
+    # feature_names_in_ is authoritative when present — and consulted before
+    # snapshot presence, so an excluded variable the model reads but the
+    # snapshot omits is a hard setup error (the attribution screen needs the
+    # column), never a silent "absent" pass. The declared feature list
+    # stands in when the estimator records no input names; with neither,
+    # usage is unverifiable.
     reach: dict[str, str] = {}
     for excluded in covenants.excluded:
-        if excluded.name not in data.columns:
+        if model_inputs is not None and excluded.name in model_inputs:
+            reach[excluded.name] = "yes"
+        elif excluded.name not in data.columns:
             reach[excluded.name] = "absent"
         elif model_inputs is not None:
-            reach[excluded.name] = "yes" if excluded.name in model_inputs else "no"
+            reach[excluded.name] = "no"
         elif excluded.name in features:
             reach[excluded.name] = "yes"
         else:
@@ -90,6 +96,7 @@ def run_exclusions_check(
     # reaches the model, with CovenantModel bound to the model's real input
     # list so scoring sees exactly the columns the estimator was fitted on.
     attributions: pd.DataFrame | None = None
+    attribution_path: str | None = None
     n_attributed = 0
     if any(status == "yes" for status in reach.values()):
         input_features = model_inputs if model_inputs is not None else features
@@ -112,7 +119,7 @@ def run_exclusions_check(
         background = sample_background(
             data, input_features, config.background_size, config.random_state + 1
         )
-        attributions = measured_attributions(
+        attributions, attribution_path = explain(
             model, X, background, cat_columns, config.random_state
         )
         n_attributed = len(X)
@@ -159,10 +166,16 @@ def run_exclusions_check(
         if status == "yes":
             entry["reaches_model"] = "yes"
             assert attributions is not None  # computed above for this status
+            # Threshold on the excluded variable's *share* of total mean
+            # |attribution| mass: scale-invariant across attribution paths
+            # (logit-space linear-exact vs probability-space permutation).
             mean_abs = float(attributions[excluded.name].abs().mean())
-            max_attribution = max(max_attribution, mean_abs)
-            breach = mean_abs >= config.max_excluded_attribution
+            total_mass = float(attributions.abs().mean().sum())
+            share = mean_abs / total_mass if total_mass > 0 else 0.0
+            max_attribution = max(max_attribution, share)
+            breach = share >= config.max_excluded_attribution
             entry["mean_abs_attribution"] = round(mean_abs, 6)
+            entry["attribution_share"] = round(share, 6)
             entry["attribution_breach"] = breach
             if breach:
                 attribution_breach = True
@@ -203,6 +216,7 @@ def run_exclusions_check(
         details={
             "by_variable": by_variable,
             "flagged_pairs": flagged_pairs,
+            "attribution_path": attribution_path,
             "note": (
                 "the proxy screen reports pairwise association between "
                 "excluded variables and declared features: proxies are "
