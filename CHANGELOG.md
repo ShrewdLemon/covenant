@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **German Credit demo** (`examples/german_credit/`): Covenant on real,
+  recognized public data (UCI / OpenML `credit-g`, committed for offline
+  determinism). A model quietly fitted on `personal_status` (sex/marital
+  status) and `foreign_worker` breaches `check features` and
+  `check exclusions`; the clean model passes all four checks with the real
+  proxy associations surfaced below threshold; the report renders real
+  AUC/PSI/challenger numbers byte-identically. All asserted in CI.
+
 ## 0.4.0 — 2026-08-19
 
 ### Added

@@ -141,7 +141,38 @@ covenant diff my-scorecard 3f9c1a2b8d4e 7e2d9c0b1a3f
 The model contract is `predict_proba` over a dataframe — scikit-learn
 estimators and pipelines work as-is.
 
-## The demo: a broken scorecard
+## The demos
+
+### Real data: German Credit and the protected attributes
+
+[`examples/german_credit/`](examples/german_credit/) runs Covenant on the
+Statlog German Credit dataset (UCI / OpenML `credit-g`, 1,000 real
+applications, committed to the repo for offline determinism). The dataset
+famously contains `personal_status` — which encodes **sex and marital
+status** — and `foreign_worker`. Two models, one covenant that excludes
+both columns:
+
+```bash
+python examples/german_credit/make_demo.py
+cd examples/german_credit
+
+covenant check features model_leaky.joblib train.csv --covenants covenants.yaml
+# BREACH — used by the model but undeclared: personal_status, foreign_worker; exit 1
+covenant check exclusions model_leaky.joblib train.csv --covenants covenants.yaml
+# BREACH — the covenant excludes them; the model measurably uses them; exit 1
+
+covenant check all model_clean.joblib train.csv --covenants covenants.yaml
+# PASS on all four checks — with the real associations the proxy screen
+# found (personal_status ~ num_dependents at 0.28) surfaced below threshold
+covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report/
+# AUC 0.827 [0.796, 0.857], score PSI train->holdout 0.059, byte-identical re-render
+```
+
+The leaky model's accuracy gives nothing away — only testing the artefact
+against its documented claims catches it. CI asserts all of these exit
+codes on every commit.
+
+### Synthetic: the broken scorecard
 
 `examples/broken_scorecard/` fits a logistic scorecard, then derives
 adverse-action reasons from a **stale coefficient table** — two strong

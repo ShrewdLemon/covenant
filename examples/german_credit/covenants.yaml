@@ -1,0 +1,79 @@
+# The covenant for the German Credit scorecard: 18 documented features,
+# two exclusions that are the whole point of the demo. personal_status
+# encodes sex and marital status; foreign_worker is a nationality marker.
+# The clean model honours this covenant; the leaky model breaches it.
+covenant_schema: 1
+model_name: german-credit
+features:
+  # numeric — directions declared only where the claim is defensible
+  - name: duration
+    dtype: numeric
+    direction: increases_risk
+  - name: credit_amount
+    dtype: numeric
+    direction: increases_risk
+  - name: installment_commitment
+    dtype: numeric
+    direction: increases_risk
+  - name: age
+    dtype: numeric
+    direction: decreases_risk
+  - name: residence_since
+    dtype: numeric
+  - name: existing_credits
+    dtype: numeric
+  - name: num_dependents
+    dtype: numeric
+  # categorical
+  - name: checking_status
+    dtype: categorical
+  - name: credit_history
+    dtype: categorical
+  - name: purpose
+    dtype: categorical
+  - name: savings_status
+    dtype: categorical
+  - name: employment
+    dtype: categorical
+  - name: other_parties
+    dtype: categorical
+  - name: property_magnitude
+    dtype: categorical
+  - name: other_payment_plans
+    dtype: categorical
+  - name: housing
+    dtype: categorical
+  - name: job
+    dtype: categorical
+  - name: own_telephone
+    dtype: categorical
+excluded:
+  - name: personal_status
+    reason: encodes sex and marital status — protected attributes (ECOA)
+  - name: foreign_worker
+    reason: nationality marker — protected attribute
+reason_codes:
+  # production exports per-applicant SHAP values for denied applications;
+  # Covenant verifies the export against the live model's behaviour
+  method: shapley
+  top_k: 3
+  parameters:
+    attributions_file: clean_attributions.csv
+checks:
+  reason_codes:
+    id_column: application_id
+    decision_threshold: 0.5
+    max_denied_sample: 60
+    background_size: 40
+  monotonicity:
+    max_violation_rate: 0.05
+  features:
+    sample_size: 120
+    background_size: 40
+  exclusions:
+    max_association: 0.5   # real associations up to 0.28 are surfaced below it
+    sample_size: 120
+    background_size: 40
+report:
+  target_column: bad
+  n_bootstrap: 200

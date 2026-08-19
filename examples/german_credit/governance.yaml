@@ -1,0 +1,19 @@
+owner:
+  name: Demo Owner
+  email: owner@example.com
+intended_use: >
+  Demonstration scorecard on the public Statlog German Credit dataset
+  (UCI / OpenML credit-g). Exists to show governance checks on real data;
+  makes no real decisions.
+limitations:
+  - 1,000 applications from 1994 Germany; not representative of any
+    current book.
+  - The dataset's known cost-matrix framing is ignored; the target is
+    used as a plain 0/1 outcome.
+materiality:
+  tier: 3
+  justification: >
+    Public-dataset demonstration model with zero portfolio exposure;
+    lowest tier applies because it makes no real decisions.
+review_date: 2027-02-01
+vendor: null

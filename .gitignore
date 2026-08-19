@@ -25,3 +25,13 @@ report_[ab]/
 site/
 .hypothesis/
 .mypy_cache/
+
+# german_credit demo generated artifacts (recreate with make_demo.py;
+# data/german_credit.csv is committed on purpose)
+examples/german_credit/model_leaky.joblib
+examples/german_credit/model_clean.joblib
+examples/german_credit/train.csv
+examples/german_credit/holdout.csv
+examples/german_credit/clean_attributions.csv
+examples/german_credit/.covenant/
+examples/german_credit/report/

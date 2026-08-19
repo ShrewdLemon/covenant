@@ -80,6 +80,28 @@ jobs:
           covenant register model.joblib train.csv --covenants covenants_fixed.yaml --governance governance.yaml
           covenant register model.joblib train.csv --covenants covenants_broken.yaml --governance governance.yaml
           covenant list
+      - name: Build German Credit demo (real public data, committed)
+        working-directory: examples/german_credit
+        run: python make_demo.py
+      - name: Leaky model must breach features and exclusions
+        working-directory: examples/german_credit
+        run: |
+          set +e
+          covenant check features model_leaky.joblib train.csv --covenants covenants.yaml
+          features=$?
+          covenant check exclusions model_leaky.joblib train.csv --covenants covenants.yaml
+          exclusions=$?
+          set -e
+          test "$features" -eq 1 && test "$exclusions" -eq 1
+      - name: Clean model must pass every check
+        working-directory: examples/german_credit
+        run: covenant check all model_clean.joblib train.csv --covenants covenants.yaml
+      - name: Real-data report renders byte-identically twice
+        working-directory: examples/german_credit
+        run: |
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_a
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_b
+          diff -r report_a report_b
 
   typecheck:
     runs-on: ubuntu-latest
