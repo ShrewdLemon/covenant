@@ -1,6 +1,32 @@
 # Changelog
 
-## 0.3.0 — unreleased
+## 0.3.1 — 2026-08-19
+
+The 0.3.0 wheel uploaded to PyPI was accidentally built from a tree that
+predated the fixes below, so 0.3.0 is yanked and 0.3.1 is the release to
+install. The features listed under 0.3.0 are all included here.
+
+### Fixed (from an adversarial review of the 0.3.0 diff)
+- PSI computed at value level when the baseline has ≤ n_bins distinct
+  values: binary flags, zero-inflated counts and constant columns now
+  measure population shifts instead of silently reporting 0.0.
+- `correlation_ratio`/`spearman_abs` drop non-finite pairs, so a single
+  `inf` row can no longer turn a perfect proxy into an unflagged NaN.
+- Check 4 consults `feature_names_in_` before snapshot presence: an
+  excluded variable the model reads but the snapshot omits is a setup
+  error, never a silent pass.
+- `covenant check all` skips (rather than aborts) on artefact and
+  registration errors and exits 2 when no check could run at all.
+- Declared artefacts fail loudly on empty payload cells, overlapping bins
+  and missing files, naming the table and value.
+- The report's reproduce command uses file basenames, so rendered bytes
+  no longer depend on how input paths were spelled.
+- Dead-feature, excluded-attribution and placebo screens threshold on each
+  feature's share of total attribution mass — scale-invariant across the
+  logit-space linear-exact and probability-space permutation paths; checks
+  3–4 record `attribution_path`.
+
+## 0.3.0 — 2026-08-19 (yanked: the uploaded wheel predated 0.3.1's fixes)
 
 ### Added
 - **Check 3 — features** (`covenant check features`): declared vs
