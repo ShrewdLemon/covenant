@@ -61,9 +61,13 @@ class TestOptBinningAdapter:
 
         splits = scorecard.binning_process_.get_binned_variable("income").splits
         income = table[table["feature"] == "income"]
-        # exact bounds, not the summary table's 2-decimal display strings
-        exported_uppers = sorted(income["bin_upper"].dropna().astype(float))
-        assert exported_uppers == sorted(float(s) for s in splits)
+        # full-precision bounds, not the summary table's 2-decimal display
+        # strings (pandas' default CSV parser can be 1 ulp off repr's exact
+        # round-trip, so compare tightly rather than bit-for-bit)
+        exported_uppers = np.sort(income["bin_upper"].dropna().astype(float).to_numpy())
+        np.testing.assert_allclose(
+            exported_uppers, np.sort([float(s) for s in splits]), rtol=1e-12
+        )
         # unbounded outer bins have empty bounds
         assert income["bin_lower"].isna().sum() == 1
         assert income["bin_upper"].isna().sum() == 1
