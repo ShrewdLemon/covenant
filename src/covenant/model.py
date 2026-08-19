@@ -20,12 +20,29 @@ import pandas as pd
 
 
 def load_model(path: str | Path) -> Any:
-    """Load a persisted estimator (joblib or pickle).
+    """Load a persisted estimator (skops, joblib or pickle).
 
-    Loading unpickles arbitrary code: only point Covenant at model files
-    you trust, i.e. your own.
+    A ``.skops`` file is the recommended way to persist models for
+    Covenant: skops refuses to load types outside its trusted set instead
+    of executing whatever the file contains. joblib/pickle remain supported
+    but unpickle arbitrary code — only point Covenant at model files you
+    trust, i.e. your own.
     """
     path = Path(path)
+    if path.suffix == ".skops":
+        try:
+            from skops.io import load as skops_load
+        except ImportError as err:
+            raise ValueError(
+                f"{path} is a skops artefact but skops is not installed; "
+                'pip install "covenants[skops]"'
+            ) from err
+        try:
+            return skops_load(path)
+        except Exception as err:
+            raise ValueError(
+                f"could not load {path} as a skops artefact: {err}"
+            ) from err
     try:
         return joblib.load(path)
     except Exception as joblib_err:
