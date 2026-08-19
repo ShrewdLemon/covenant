@@ -84,6 +84,12 @@ def make_data(rng: np.random.Generator) -> pd.DataFrame:
         + rng.normal(0, 0.9, N)
     )
     df["bad"] = (rng.uniform(size=N) < 1 / (1 + np.exp(-logit))).astype(int)
+    # Excluded variable (never fed to the model) for the Check 4 proxy
+    # screen, and an application month for the report's drift slices —
+    # both independent of the features by construction.
+    df["gender"] = rng.choice(["F", "M"], size=N)
+    df["application_month"] = rng.integers(1, 13, size=N)
+    df.insert(0, "application_id", [f"A{i:06d}" for i in range(N)])
     return df
 
 

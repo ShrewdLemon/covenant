@@ -164,6 +164,48 @@ def check_monotonicity(
     raise typer.Exit(0 if record.passed else 1)
 
 
+@check_app.command("features")
+@_guard
+def check_features(
+    model: Path = typer.Argument(help="Persisted estimator with predict_proba."),
+    data: Path = typer.Argument(help="Data snapshot (.csv or .parquet)."),
+    covenants: Path = typer.Option("covenants.yaml", "--covenants", help="The model's covenants."),
+    store: str = StoreOption,
+    as_json: bool = typer.Option(False, "--json", help="Print the check record as JSON."),
+) -> None:
+    """Check 3: declared features vs the features the model actually uses."""
+    from covenant.checks.features import run_features_check
+
+    record = _run_check(run_features_check, model, data, covenants, None)
+    path = record.write(Store(store))
+    if as_json:
+        typer.echo(json.dumps(record.model_dump(mode="json"), indent=2, default=str))
+    else:
+        _print_features_report(record, path)
+    raise typer.Exit(0 if record.passed else 1)
+
+
+@check_app.command("exclusions")
+@_guard
+def check_exclusions(
+    model: Path = typer.Argument(help="Persisted estimator with predict_proba."),
+    data: Path = typer.Argument(help="Data snapshot (.csv or .parquet)."),
+    covenants: Path = typer.Option("covenants.yaml", "--covenants", help="The model's covenants."),
+    store: str = StoreOption,
+    as_json: bool = typer.Option(False, "--json", help="Print the check record as JSON."),
+) -> None:
+    """Check 4: excluded variables stay out, and obvious proxies are surfaced."""
+    from covenant.checks.exclusions import run_exclusions_check
+
+    record = _run_check(run_exclusions_check, model, data, covenants, None)
+    path = record.write(Store(store))
+    if as_json:
+        typer.echo(json.dumps(record.model_dump(mode="json"), indent=2, default=str))
+    else:
+        _print_exclusions_report(record, path)
+    raise typer.Exit(0 if record.passed else 1)
+
+
 @check_app.command("all")
 @_guard
 def check_all(
@@ -173,12 +215,16 @@ def check_all(
     store: str = StoreOption,
 ) -> None:
     """Run every configured check; one summary, one combined exit code."""
+    from covenant.checks.exclusions import run_exclusions_check
+    from covenant.checks.features import run_features_check
     from covenant.checks.monotonicity import run_monotonicity_check
     from covenant.checks.reason_codes import CheckSetupError, run_reason_code_check
 
     runners = [
         ("reason-codes", run_reason_code_check, _summary_reason_codes),
         ("monotonicity", run_monotonicity_check, _summary_monotonicity),
+        ("features", run_features_check, _summary_features),
+        ("exclusions", run_exclusions_check, _summary_exclusions),
     ]
     worst_exit = 0
     lines = []
@@ -212,6 +258,69 @@ def _summary_monotonicity(record) -> str:
     return f"worst violation {m['worst_violation_rate']:.3f}{extra}"
 
 
+def _summary_features(record) -> str:
+    m = record.metrics
+    return (
+        f"undocumented {int(m['n_undocumented_used'])}"
+        f"  unused {int(m['n_declared_unused'])}"
+        f"  dead {int(m['n_dead'])}"
+    )
+
+
+def _summary_exclusions(record) -> str:
+    m = record.metrics
+    return (
+        f"max association {m['max_association_observed']:.2f}"
+        f"  proxy flags {int(m['n_proxy_flags'])}"
+    )
+
+
+def _print_features_report(record, path: str) -> None:
+    verdict = "PASS" if record.passed else "BREACH (fail)"
+    details = record.details
+    typer.echo(f"check features — {record.model_name}: {verdict}")
+    if not details.get("structural_available", True):
+        typer.echo("  model exposes no input names; structural comparison unavailable")
+    for label, key in (
+        ("used by the model but undeclared", "undocumented_used"),
+        ("declared but not a model input", "declared_unused"),
+    ):
+        values = details.get(key, [])
+        if values:
+            typer.echo(f"  {label}: {', '.join(values)}")
+    dead = details.get("dead_features", [])
+    if dead:
+        typer.echo("  documented but measurably inert (warning, not a breach):")
+        for row in dead:
+            typer.echo(
+                f"    {row['feature']:<26s} mean |attribution| "
+                f"{row['mean_abs_attribution']:.5f}"
+            )
+    typer.echo(f"  record: {path}")
+
+
+def _print_exclusions_report(record, path: str) -> None:
+    verdict = "PASS" if record.passed else "BREACH (fail)"
+    m = record.metrics
+    typer.echo(f"check exclusions — {record.model_name}: {verdict}")
+    typer.echo(
+        f"  max association observed {m['max_association_observed']:.3f}"
+        f"  (threshold {record.thresholds['max_association']:.2f})"
+    )
+    flagged = record.details.get("flagged_pairs", [])
+    if flagged:
+        typer.echo("  potential proxies (surfaced, not proven absent):")
+        for pair in flagged:
+            typer.echo(
+                f"    {pair['excluded']} ~ {pair['feature']}"
+                f"  {pair['strength']:.3f} ({pair['method']})"
+            )
+    for row in record.details.get("by_variable", []):
+        if isinstance(row, dict) and row.get("note"):
+            typer.echo(f"  {row.get('name', '?')}: {row['note']}")
+    typer.echo(f"  record: {path}")
+
+
 def _print_reason_code_report(record, path: str) -> None:
     verdict = "PASS" if record.passed else "BREACH (fail)"
     m, t = record.metrics, record.thresholds
@@ -229,6 +338,16 @@ def _print_reason_code_report(record, path: str) -> None:
         + ("  [sensitive — treat measured side with caution]"
            if record.details.get("background_sensitive") else "")
     )
+    path_used = record.details.get("attribution_path")
+    if path_used:
+        typer.echo(f"  measured via: {path_used}")
+    placebo = record.details.get("placebo")
+    if placebo and not placebo.get("skipped"):
+        flag = "  [noisy]" if placebo.get("noisy") else ""
+        typer.echo(
+            f"  placebo ({placebo['feature']}): measured top-k shift "
+            f"{placebo['measured_topk_shift']:.3f}{flag}"
+        )
     typer.echo(f"  n denied evaluated: {record.n_evaluated}")
     bands = record.details.get("by_score_band", [])
     if bands:
@@ -362,15 +481,38 @@ def list_models(store: str = StoreOption) -> None:
 
 @app.command()
 @_guard
-def report() -> None:
-    """Deterministic validation report — not yet implemented (planned v0.3)."""
-    typer.echo(
-        "covenant report is planned for v0.3: discrimination, calibration, "
-        "stability, drift and challenger lift with bootstrap CIs, rendered "
-        "deterministically and mapped to SR 26-2 / FREE-AI.",
-        err=True,
-    )
-    raise typer.Exit(2)
+def report(
+    model: Path = typer.Argument(help="Persisted estimator with predict_proba."),
+    data: Path = typer.Argument(help="Data snapshot (.csv or .parquet) with the target column."),
+    covenants: Path = typer.Option("covenants.yaml", "--covenants", help="The model's covenants."),
+    out: Path = typer.Option("covenant-report", "--out", help="Output directory."),
+    holdout: Path | None = typer.Option(
+        None, "--holdout", help="Optional holdout snapshot for stability (PSI/CSI)."
+    ),
+    target: str | None = typer.Option(
+        None, "--target", help="Override report.target_column from the covenants."
+    ),
+) -> None:
+    """Deterministic validation report: same inputs, same bytes.
+
+    Discrimination, calibration, stability, drift, monotonicity and a
+    logistic challenger's lift, with bootstrap confidence intervals, every
+    section mapped to the regulatory ask (docs/MAPPING.md)."""
+    from covenant.checks.reason_codes import CheckSetupError
+    from covenant.declared import DeclaredMethodError
+    from covenant.registry import RegistrationError
+    from covenant.report import build_report
+
+    overrides = {"target_column": target} if target else None
+    try:
+        path = build_report(
+            model, data, covenants, out, holdout_path=holdout, config_overrides=overrides
+        )
+    except (CheckSetupError, DeclaredMethodError, RegistrationError, FileNotFoundError) as err:
+        typer.echo(f"error: {err}", err=True)
+        raise typer.Exit(2) from err
+    typer.echo(f"report written: {path}")
+    typer.echo("re-render with the same inputs reproduces these bytes exactly")
 
 
 _TEMPLATES = {
@@ -401,9 +543,14 @@ checks:
     min_top1_agreement: 0.75
     min_topk_jaccard: 0.60
     decision_threshold: 0.5
-    # id_column: application_id      # required when method is custom
+    # id_column: application_id      # required when method is custom/shapley
   monotonicity:
     max_violation_rate: 0.05
+  exclusions:
+    max_association: 0.5             # proxy screen; tune to your book
+report:
+  target_column: bad                 # 0/1 outcome column, needed by `covenant report`
+  # time_column: application_month   # enables drift-by-slice
 """,
     "governance.yaml": """\
 # Governance record for the registered model version.

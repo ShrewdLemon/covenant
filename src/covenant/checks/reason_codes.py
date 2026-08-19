@@ -15,9 +15,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from covenant.attribution import (
-    measured_attributions,
+    explain,
     sample_background,
     top_1,
     top_k_sets,
@@ -27,7 +28,7 @@ from covenant.declared import declared_reason_sets
 from covenant.hashing import sha256_canonical, sha256_dataframe, sha256_file
 from covenant.model import CovenantModel, load_model
 from covenant.registry import load_covenants, load_data
-from covenant.schema import ModelCovenants, ReasonCodeCheckConfig
+from covenant.schema import ModelCovenants, ReasonCodeCheckConfig, ReasonCodeMethod
 
 CHECK_NAME = "reason-codes"
 
@@ -102,7 +103,7 @@ def run_reason_code_check(
     # so the record reports how much the measured side itself moves.
     k = covenants.reason_codes.top_k
     background_a = sample_background(data, features, config.background_size, config.random_state)
-    attributions = measured_attributions(
+    attributions, attribution_path = explain(
         model, X_denied, background_a, categorical, config.random_state
     )
     measured_sets = top_k_sets(attributions, k)
@@ -111,7 +112,7 @@ def run_reason_code_check(
     background_b = sample_background(
         data, features, config.background_size, config.random_state + 1
     )
-    attributions_b = measured_attributions(
+    attributions_b, _ = explain(
         model, X_denied, background_b, categorical, config.random_state + 1
     )
     measured_sets_b = top_k_sets(attributions_b, k)
@@ -130,6 +131,23 @@ def run_reason_code_check(
     worst = _worst_disagreements(
         denied_idx, p_denied, declared_sets, measured_sets, row_jaccard
     )
+
+    placebo = None
+    if config.placebo:
+        placebo = _placebo_subcheck(
+            model,
+            X_denied,
+            background_a,
+            attributions,
+            measured_sets,
+            declared_sets,
+            covenants,
+            config,
+            Path(covenants_path).resolve().parent,
+            ids,
+            k,
+            categorical,
+        )
 
     passed = (
         top1_agreement >= config.min_top1_agreement
@@ -164,14 +182,92 @@ def run_reason_code_check(
             "by_score_band": strata,
             "worst_disagreements": worst,
             "background_sensitive": background_jaccard < BACKGROUND_SENSITIVITY_FLOOR,
+            "attribution_path": attribution_path,
+            "placebo": placebo,
             "note": (
-                "measured side is a SHAP approximation of the model, not ground "
-                "truth; background_jaccard reports how stable it is across two "
-                "seeded backgrounds"
+                "measured side approximates the model, not ground truth; "
+                "attribution_path names whether it is exact or sampled, and "
+                "background_jaccard reports its stability across two seeded "
+                "backgrounds"
             ),
         },
     )
     return record.stamp()
+
+
+def _placebo_subcheck(
+    model: CovenantModel,
+    X: pd.DataFrame,
+    background: pd.DataFrame,
+    attributions: pd.DataFrame,
+    measured_sets: list[frozenset],
+    declared_sets: list[frozenset],
+    covenants: ModelCovenants,
+    config: ReasonCodeCheckConfig,
+    covenants_dir: Path,
+    ids,
+    k: int,
+    categorical: list[str],
+) -> dict:
+    """Krivorotov & Richey's placebo test: shuffle a feature the model
+    measurably ignores and confirm neither side's reasons move.
+
+    A shift means the explanation pipeline itself is noisy — a diagnostic of
+    the pipeline, not a covenant breach, so the result is recorded and
+    flagged but never fails the check on its own. Skipped honestly when
+    every declared feature carries real attribution.
+    """
+    mean_abs = attributions.abs().mean()
+    candidates = mean_abs[mean_abs < config.placebo_epsilon]
+    if candidates.empty:
+        return {
+            "skipped": True,
+            "reason": (
+                "no declared feature has mean |attribution| below "
+                f"{config.placebo_epsilon}; nothing is irrelevant enough to "
+                "serve as a placebo"
+            ),
+        }
+    feature = str(candidates.idxmin())
+    rng = np.random.default_rng(config.random_state + 7)
+    X_placebo = X.copy()
+    X_placebo[feature] = rng.permutation(X_placebo[feature].to_numpy())
+
+    attributions_p, _ = explain(model, X_placebo, background, categorical, config.random_state)
+    measured_p = top_k_sets(attributions_p, k)
+    measured_shift = float(
+        np.mean([a != b for a, b in zip(measured_sets, measured_p, strict=True)])
+    )
+
+    declared_shift = None
+    artefact_methods = (ReasonCodeMethod.CUSTOM, ReasonCodeMethod.SHAPLEY)
+    if covenants.reason_codes.method not in artefact_methods:
+        declared_p, _ = declared_reason_sets(
+            covenants.reason_codes,
+            X_placebo,
+            covenants_dir,
+            ids=ids,
+            id_column=config.id_column,
+        )
+        declared_shift = float(
+            np.mean([a != b for a, b in zip(declared_sets, declared_p, strict=True)])
+        )
+
+    noisy = measured_shift > config.max_placebo_shift or (
+        declared_shift is not None and declared_shift > config.max_placebo_shift
+    )
+    return {
+        "skipped": False,
+        "feature": feature,
+        "measured_topk_shift": round(measured_shift, 4),
+        "declared_topk_shift": None if declared_shift is None else round(declared_shift, 4),
+        "noisy": noisy,
+        "note": (
+            "shift = fraction of denied applicants whose top-k changed after "
+            "shuffling the placebo feature; a file-based declared method is "
+            "unaffected by construction and reports null"
+        ),
+    }
 
 
 def _stratify(

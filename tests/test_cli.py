@@ -36,9 +36,44 @@ def test_init_writes_templates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert "left untouched" in again.output
 
 
-def test_report_is_a_stub_with_exit_2() -> None:
-    result = runner.invoke(app, ["report"])
+def test_report_without_target_column_exits_2(fitted: dict, tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "report",
+            str(fitted["model"]),
+            str(fitted["data"]),
+            "--covenants",
+            str(fitted["covenants"]),
+            "--out",
+            str(tmp_path / "report"),
+        ],
+    )
     assert result.exit_code == 2
+    assert "target_column" in combined_output(result)
+
+
+def test_report_cli_renders(fitted: dict, tmp_path: Path) -> None:
+    out = tmp_path / "report"
+    result = runner.invoke(
+        app,
+        [
+            "report",
+            str(fitted["model"]),
+            str(fitted["data"]),
+            "--covenants",
+            str(fitted["covenants"]),
+            "--out",
+            str(out),
+            "--target",
+            "bad",
+        ],
+    )
+    assert result.exit_code == 0, combined_output(result)
+    assert (out / "report.md").exists()
+    body = (out / "report.md").read_text()
+    assert "report_sha256:" in body
+    assert "AUC" in body
 
 
 def test_register_and_diff_with_prefixes(fitted: dict, tmp_path: Path) -> None:

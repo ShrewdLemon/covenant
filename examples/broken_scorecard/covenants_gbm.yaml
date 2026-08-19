@@ -36,7 +36,11 @@ reason_codes:
   # production would send Shapley-based reasons; not exercised in this demo
   method: shapley
   top_k: 4
+  parameters:
+    attributions_file: gbm_attributions.csv   # production export, joined on id
 checks:
+  reason_codes:
+    id_column: application_id
   monotonicity:
     max_violation_rate: 0.05
     n_pairs: 300
