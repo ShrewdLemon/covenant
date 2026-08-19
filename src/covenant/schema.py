@@ -89,6 +89,25 @@ class ReasonCodeCheckConfig(StrictModel):
         "Required when reason_codes.method is custom: positional alignment "
         "breaks silently the moment one row is filtered upstream.",
     )
+    placebo: bool = Field(
+        default=True,
+        description="Krivorotov & Richey placebo: shuffle a declared-irrelevant "
+        "feature and confirm neither side's reasons move. Skipped (with a "
+        "note) when no feature is measurably irrelevant.",
+    )
+    placebo_epsilon: float = Field(
+        default=1e-3,
+        ge=0.0,
+        description="Mean |attribution| below which a feature counts as "
+        "irrelevant enough to serve as the placebo.",
+    )
+    max_placebo_shift: float = Field(
+        default=0.10,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of rows whose top-k may change under the "
+        "placebo before the explanation pipeline is flagged as noisy.",
+    )
     random_state: int = 0
 
 
@@ -108,9 +127,74 @@ class MonotonicityCheckConfig(StrictModel):
     random_state: int = 0
 
 
+class FeaturesCheckConfig(StrictModel):
+    """Thresholds for Check 3 (declared vs used features)."""
+
+    dead_feature_epsilon: float = Field(
+        default=1e-3,
+        ge=0.0,
+        description="Mean |attribution| below which a documented feature is "
+        "flagged as dead (a warning, not a breach).",
+    )
+    sample_size: int = Field(default=300, ge=20)
+    background_size: int = Field(default=100, ge=10)
+    random_state: int = 0
+
+
+class ExclusionsCheckConfig(StrictModel):
+    """Thresholds for Check 4 (exclusions and proxies). The proxy screen
+    surfaces obvious proxies; it never proves absence."""
+
+    max_excluded_attribution: float = Field(
+        default=1e-3,
+        ge=0.0,
+        description="If an excluded variable reaches the model anyway, its "
+        "mean |attribution| must stay below this.",
+    )
+    max_association: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Association (|Spearman|, correlation ratio, or "
+        "Cramer's V) between an excluded variable and a used feature above "
+        "which the pair is flagged as a potential proxy. Tune to your book.",
+    )
+    fail_on_proxies: bool = Field(
+        default=True,
+        description="Whether a flagged proxy fails the check or only warns.",
+    )
+    sample_size: int = Field(default=300, ge=20)
+    background_size: int = Field(default=100, ge=10)
+    random_state: int = 0
+
+
 class ChecksConfig(StrictModel):
     reason_codes: ReasonCodeCheckConfig = Field(default_factory=ReasonCodeCheckConfig)
     monotonicity: MonotonicityCheckConfig = Field(default_factory=MonotonicityCheckConfig)
+    features: FeaturesCheckConfig = Field(default_factory=FeaturesCheckConfig)
+    exclusions: ExclusionsCheckConfig = Field(default_factory=ExclusionsCheckConfig)
+
+
+class ReportConfig(StrictModel):
+    """Settings for the deterministic validation report."""
+
+    target_column: str | None = Field(
+        default=None,
+        description="Name of the 0/1 outcome column in the snapshot; required "
+        "to render a report.",
+    )
+    time_column: str | None = Field(
+        default=None,
+        description="Optional timestamp/ordinal column for drift-by-slice.",
+    )
+    n_bootstrap: int = Field(default=500, ge=50)
+    n_bins: int = Field(default=10, ge=4)
+    challenger: bool = Field(
+        default=True,
+        description="Fit a plain logistic challenger on the same features and "
+        "report its lift with confidence intervals.",
+    )
+    random_state: int = 0
 
 
 class ModelCovenants(StrictModel):
@@ -127,6 +211,7 @@ class ModelCovenants(StrictModel):
     excluded: list[ExcludedVariable] = Field(default_factory=list)
     reason_codes: ReasonCodePolicy
     checks: ChecksConfig = Field(default_factory=ChecksConfig)
+    report: ReportConfig = Field(default_factory=ReportConfig)
 
     @field_validator("features")
     @classmethod

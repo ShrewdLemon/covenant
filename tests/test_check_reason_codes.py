@@ -90,7 +90,7 @@ def test_categorical_pipeline_runs(fitted_categorical: dict) -> None:
 def test_custom_reasons_missing_id_fails_loudly(
     fitted_categorical: dict, tmp_path: Path
 ) -> None:
-    from covenant.attribution import DeclaredMethodError
+    from covenant.declared import DeclaredMethodError
 
     root = fitted_categorical["root"]
     reasons = (root / "reasons.csv").read_text().splitlines()
