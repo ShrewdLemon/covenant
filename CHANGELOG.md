@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.4.0 — 2026-08-19
+
+### Added
+- **OptBinning adapter** (`covenant.adapters.export_scorecard_points`):
+  export a fitted `optbinning.Scorecard` as a Covenant points table using
+  the exact split points from the binning objects (never the display-rounded
+  table strings), ready for `reason_codes.method: most_points_lost`.
+  Special/Missing bins are not exported; a reversed scorecard negates
+  points via `higher_points_lower_risk=False`.
+- **EBM exact attribution path** (`"ebm-exact"`): InterpretML
+  `ExplainableBoostingClassifier` models are explained by their own shape
+  functions — logit-space `eval_terms`, centered on the background, with
+  pairwise interaction terms split equally between their features. No
+  sampling, no codec; categorical features consumed raw.
+- **skops loading**: `.skops` model files load through `skops.io.load`,
+  which refuses untrusted types instead of executing them — the
+  recommended way to persist models for Covenant
+  (`pip install "covenants[skops]"`).
+- Optional extras: `covenants[scorecard]`, `[interpret]`, `[skops]`,
+  `[boosters]`, `[integrations]` (all of them), `[docs]`.
+- xgboost/lightgbm integration tests: `configured_directions` parsing on
+  real boosters and the tree-shap path (skipped when the libraries are
+  absent; CI runs them in a dedicated job).
+- mypy in CI (strict enough to catch real defects, pydantic plugin on);
+  the package ships `py.typed`.
+- Documentation site (mkdocs-material) at
+  https://shrewdlemon.github.io/covenant/, built `--strict` and deployed
+  from CI.
+
 ## 0.3.1 — 2026-08-19
 
 The 0.3.0 wheel uploaded to PyPI was accidentally built from a tree that

@@ -114,8 +114,10 @@ def explain(
     """Per-row attributions of ``p_bad``, positive = pushes toward denial,
     plus the name of the path that produced them.
 
-    Returns ``(attributions, path)`` with ``path`` one of ``"linear-exact"``,
-    ``"tree-shap"`` or ``"permutation-shap"``. Selection, most exact first:
+    Returns ``(attributions, path)`` with ``path`` one of ``"ebm-exact"``,
+    ``"linear-exact"``, ``"tree-shap"`` or ``"permutation-shap"``.
+    Selection, most exact first (``"ebm-exact"`` reads an InterpretML EBM's
+    own shape functions — see ``_ebm_exact``):
 
     * ``"linear-exact"`` — no categorical features and the estimator is a
       binary sklearn ``LogisticRegression``, or a ``Pipeline`` whose final
@@ -143,6 +145,10 @@ def explain(
     truth (Sudjianto & Zhang, 2021); the exact paths remove the sampling
     noise, not the interpretive caveats.
     """
+    if _is_ebm_classifier(model.estimator):
+        frame = _ebm_exact(model, X, background)
+        if frame is not None:
+            return frame, "ebm-exact"
     active_categories = [c for c in (categorical or []) if c in X.columns]
     if not active_categories:
         beta_eff = _linear_effective_coefficients(model)
@@ -154,6 +160,57 @@ def explain(
                 return frame, "tree-shap"
     frame = _permutation_shap(model, X, background, categorical, random_state, npermutations)
     return frame, "permutation-shap"
+
+
+def _is_ebm_classifier(estimator: object) -> bool:
+    try:
+        from interpret.glassbox import ExplainableBoostingClassifier
+    except ImportError:
+        return False
+    return isinstance(estimator, ExplainableBoostingClassifier)
+
+
+def _ebm_exact(
+    model: CovenantModel, X: pd.DataFrame, background: pd.DataFrame
+) -> pd.DataFrame | None:
+    """Exact shape-function contributions for an InterpretML EBM.
+
+    An EBM is inherently interpretable (Sudjianto & Zhang, 2021): its
+    per-term contributions ``eval_terms`` are the model, not an
+    approximation of it, so no sampling explainer is needed. Contributions
+    are in logit space (like linear-exact), centered on the background
+    sample's mean per term so the reference point matches the other paths.
+    Pairwise interaction terms are split equally between their two features
+    — the standard convention, stated here because it is a convention, not
+    a theorem. Categorical features need no codec: the EBM consumes its
+    raw values. Returns None (falling back to permutation SHAP) whenever
+    the estimator's own feature record cannot be aligned with the data.
+    """
+    est = model.estimator
+    names = [str(n) for n in getattr(est, "feature_names_in_", [])]
+    if not names or any(n not in X.columns for n in names):
+        return None
+    term_features = getattr(est, "term_features_", None)
+    if term_features is None:
+        return None
+    try:
+        raw = np.asarray(est.eval_terms(X[names]))
+        baseline = np.asarray(est.eval_terms(background[names])).mean(axis=0)
+    except Exception:
+        return None
+    centered = raw - baseline
+    if not np.isfinite(centered).all():
+        return None
+    sign = -1.0 if model.bad_class_index == 0 else 1.0
+    out = np.zeros((len(X), len(X.columns)))
+    column_index = {c: i for i, c in enumerate(X.columns)}
+    for term, feature_ids in enumerate(term_features):
+        weight = sign / len(feature_ids)
+        for feature_id in feature_ids:
+            j = column_index.get(names[feature_id])
+            if j is not None:
+                out[:, j] += weight * centered[:, term]
+    return pd.DataFrame(out, columns=list(X.columns), index=X.index)
 
 
 def measured_attributions(

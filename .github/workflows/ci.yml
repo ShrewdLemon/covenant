@@ -80,3 +80,45 @@ jobs:
           covenant register model.joblib train.csv --covenants covenants_fixed.yaml --governance governance.yaml
           covenant register model.joblib train.csv --covenants covenants_broken.yaml --governance governance.yaml
           covenant list
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          uv pip install -e ".[dev,integrations]"
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+      - name: mypy
+        run: mypy src/covenant
+      - name: Integration tests (optbinning, interpret, skops, boosters)
+        run: pytest tests/test_integrations.py -q
+
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Build site
+        run: |
+          uv pip install mkdocs-material
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          .venv/bin/mkdocs build --strict
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: deployment
+        uses: actions/deploy-pages@v4

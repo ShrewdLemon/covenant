@@ -22,3 +22,4 @@ examples/broken_scorecard/.covenant/
 # os
 .DS_Store
 report_[ab]/
+site/

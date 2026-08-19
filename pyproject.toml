@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "covenants"
-version = "0.3.1"
+version = "0.4.0"
 description = "pytest for credit-model governance: a model's documentation is a set of testable claims about its behaviour, so test them."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -44,11 +44,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+scorecard = ["optbinning>=0.19"]
+interpret = ["interpret-core>=0.6"]
+skops = ["skops>=0.10"]
+boosters = ["xgboost>=2.0", "lightgbm>=4.0"]
+integrations = ["covenants[scorecard,interpret,skops,boosters]"]
+docs = ["mkdocs-material>=9.5"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "hypothesis>=6.100",
     "ruff>=0.6",
+    "mypy>=1.10",
 ]
 
 [project.scripts]
@@ -78,3 +85,11 @@ addopts = "-ra"
 markers = [
     "slow: long-running performance tests",
 ]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+plugins = ["pydantic.mypy"]

@@ -65,14 +65,14 @@ def run_features_check(
     # pipeline, feature_names_in_ is the raw columns its first step was fed).
     raw_inputs = getattr(estimator, "feature_names_in_", None)
     structural_available = raw_inputs is not None
-    if structural_available:
+    undocumented_used: list[str] = []
+    declared_unused: list[str] = []
+    if raw_inputs is not None:
         model_inputs = [str(c) for c in raw_inputs]
         undocumented_used = [c for c in model_inputs if c not in declared]
         declared_unused = [f for f in declared if f not in model_inputs]
         score_features = model_inputs
     else:
-        undocumented_used: list[str] = []
-        declared_unused: list[str] = []
         score_features = declared
 
     missing = [c for c in score_features if c not in data.columns]

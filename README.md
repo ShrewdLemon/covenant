@@ -47,8 +47,10 @@ for it. That test is Covenant's Check 1.
 | Check 4 `exclusions` — exclusions honoured, obvious proxies surfaced | ✅ shipped |
 | `covenant check all` — combined gate | ✅ shipped |
 | All four K&R declared methods (`difference_from_mean`, `most_points_lost`, `univariate`, `shapley` export) plus a production reasons file (`custom`) | ✅ shipped |
-| Exact attribution fast paths (linear-exact, tree-shap) with the path named in every record | ✅ shipped |
+| Exact attribution fast paths (ebm-exact, linear-exact, tree-shap) with the path named in every record | ✅ shipped |
 | `covenant report` — deterministic validation report, mapped to SR 26-2 / FREE-AI ([docs/MAPPING.md](docs/MAPPING.md)) | ✅ shipped |
+| OptBinning `Scorecard` adapter, InterpretML EBM exact path, `.skops` safe loading | ✅ shipped |
+| Docs site — [shrewdlemon.github.io/covenant](https://shrewdlemon.github.io/covenant/) | ✅ shipped |
 
 ## What it does
 
@@ -110,9 +112,9 @@ regulatory ask, and the whole thing renders byte-identically from the same
 inputs. The report embeds its own hash and each figure's hash, so it is
 citable evidence years later.
 
-The measured side names its method: linear models get closed-form exact
-contributions, tree ensembles get TreeExplainer, everything else falls back
-to permutation SHAP — and every attribution-based check record states which
+The measured side names its method: EBMs are explained by their own shape
+functions, linear models get closed-form exact contributions, tree ensembles
+get TreeExplainer, everything else falls back to permutation SHAP — and every attribution-based check record states which
 path produced its numbers. Check records are replayable: identical inputs produce
 byte-identical, hash-addressed records at the same path, and run timestamps
 live in an append-only `runs.log` beside them.
@@ -203,16 +205,23 @@ are themselves tested on every commit.
   disagree, Covenant reports the disagreement and where it concentrates; it
   does not rule on which side is right.
 
+## Integrations
+
+Optional extras keep the core light:
+
+```bash
+pip install "covenants[scorecard]"   # OptBinning: export_scorecard_points -> most_points_lost table
+pip install "covenants[interpret]"   # InterpretML EBM: exact shape-function attributions (path "ebm-exact")
+pip install "covenants[skops]"       # .skops model loading: refuses untrusted types instead of executing them
+pip install "covenants[boosters]"    # xgboost/lightgbm: constraint reading + TreeExplainer coverage
+pip install "covenants[integrations]"  # all of the above
+```
+
 ## Roadmap
 
-- Adapters: OptBinning `Scorecard` (native points tables for
-  `most_points_lost`), InterpretML EBM (exact shape-function contributions
-  instead of SHAP).
-- `skops` loading as the recommended safe serialization path.
 - Recourse validity (does following the reason code actually flip the
   decision?), robustness/resilience and fairness — deferred to the tools
   that already do them well (DiCE/CARLA, PiML, Fairlearn/SolasAI).
-- mkdocs documentation site.
 
 ## License
 

@@ -25,6 +25,7 @@ validators and auditors decide.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 import numpy as np
@@ -48,7 +49,7 @@ _MAPPING = "docs/MAPPING.md"
 # Deterministic rendering: fixed dpi and font so identical inputs give
 # identical PNG bytes; savefig() below also strips the Software metadata
 # matplotlib would otherwise stamp with its version string.
-_RC = {
+_RC: dict[str, Any] = {
     "figure.dpi": 100,
     "savefig.dpi": 100,
     "font.family": "DejaVu Sans",
@@ -462,6 +463,7 @@ def _challenger_section(
             "challenger comparison is rendered.",
         ]
     else:
+        assert config.target_column is not None  # validated in build_report
         p_ch = challenger_scores(
             data, features, categorical, config.target_column, random_state=config.random_state
         )
@@ -578,7 +580,7 @@ def _reliability_points(
     return sum_p[nonempty] / counts[nonempty], sum_y[nonempty] / counts[nonempty]
 
 
-def _save_figure(fig: object, path: Path, fig_paths: list[Path]) -> None:
+def _save_figure(fig: Any, path: Path, fig_paths: list[Path]) -> None:
     import matplotlib.pyplot as plt
 
     fig.savefig(path, metadata={"Software": None})
@@ -591,7 +593,7 @@ def _render_roc(path: Path, y: np.ndarray, p: np.ndarray, fig_paths: list[Path])
 
     fpr, tpr = _roc_points(y, p)
     auc = metrics.roc_auc(y, p)
-    with plt.rc_context(_RC):
+    with plt.rc_context(_RC):  # type: ignore[arg-type]  # keys are valid rcParams
         fig, ax = plt.subplots(figsize=(6.0, 4.5))
         ax.plot(fpr, tpr, color=_PRIMARY_COLOR, label=f"primary (AUC {auc:.4f})")
         ax.plot([0, 1], [0, 1], "--", color=_REFERENCE_COLOR, linewidth=1.0, label="chance")
@@ -609,7 +611,7 @@ def _render_calibration(
     import matplotlib.pyplot as plt
 
     mean_p, mean_y = _reliability_points(y, p, n_bins)
-    with plt.rc_context(_RC):
+    with plt.rc_context(_RC):  # type: ignore[arg-type]  # keys are valid rcParams
         fig, ax = plt.subplots(figsize=(6.0, 4.5))
         ax.plot([0, 1], [0, 1], "--", color=_REFERENCE_COLOR, linewidth=1.0, label="perfect")
         ax.plot(mean_p, mean_y, marker="o", color=_PRIMARY_COLOR, label="model")
@@ -630,7 +632,7 @@ def _render_challenger(
     fpr_c, tpr_c = _roc_points(y, p_ch)
     auc_p = metrics.roc_auc(y, p)
     auc_c = metrics.roc_auc(y, p_ch)
-    with plt.rc_context(_RC):
+    with plt.rc_context(_RC):  # type: ignore[arg-type]  # keys are valid rcParams
         fig, ax = plt.subplots(figsize=(6.0, 4.5))
         ax.plot(fpr_p, tpr_p, color=_PRIMARY_COLOR, label=f"primary (AUC {auc_p:.4f})")
         ax.plot(
