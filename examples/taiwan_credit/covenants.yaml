@@ -1,0 +1,110 @@
+# The covenant for the Taiwan Credit scorecard: 21 documented features,
+# two exclusions. sex and marriage are protected attributes and stay out.
+# education remains documented on purpose — it is a standard feature in the
+# credit-scoring literature for this dataset (Yeh & Lien, 2009, model it) —
+# and documenting that decision is exactly what a covenant is for.
+# The clean model honours this covenant; the leaky model breaches it.
+covenant_schema: 1
+model_name: taiwan-credit
+features:
+  # numeric — directions declared only where the fitted clean model's
+  # coefficient sign was measured first AND the claim is defensible.
+  # Scaled-space coefficients observed on the seeded 24,000-row fit:
+  #   pay_status_1 +0.643, pay_status_2 +0.101, pay_amt_1 -0.277,
+  #   limit_bal -0.096. age measured +0.094 — the sign *contradicts* the
+  #   folk claim that older is safer, so no direction is declared for it.
+  #   bill_amt_1..6 signs flip across the six correlated columns
+  #   (-0.398 to +0.143) — not robust, none declared.
+  - name: limit_bal
+    dtype: numeric
+    direction: decreases_risk
+  - name: age
+    dtype: numeric
+  - name: pay_status_1
+    dtype: numeric
+    direction: increases_risk
+  - name: pay_status_2
+    dtype: numeric
+    direction: increases_risk
+  - name: pay_status_3
+    dtype: numeric
+  - name: pay_status_4
+    dtype: numeric
+  - name: pay_status_5
+    dtype: numeric
+  - name: pay_status_6
+    dtype: numeric
+  - name: bill_amt_1
+    dtype: numeric
+  - name: bill_amt_2
+    dtype: numeric
+  - name: bill_amt_3
+    dtype: numeric
+  - name: bill_amt_4
+    dtype: numeric
+  - name: bill_amt_5
+    dtype: numeric
+  - name: bill_amt_6
+    dtype: numeric
+  - name: pay_amt_1
+    dtype: numeric
+    direction: decreases_risk
+  - name: pay_amt_2
+    dtype: numeric
+  - name: pay_amt_3
+    dtype: numeric
+  - name: pay_amt_4
+    dtype: numeric
+  - name: pay_amt_5
+    dtype: numeric
+  - name: pay_amt_6
+    dtype: numeric
+  # categorical
+  - name: education
+    dtype: categorical
+excluded:
+  - name: sex
+    reason: protected attribute (ECOA analogue; sex may not drive scoring)
+  - name: marriage
+    reason: marital status — protected attribute
+reason_codes:
+  # production exports per-applicant SHAP values for denied applications;
+  # Covenant verifies the export against the live model's behaviour
+  method: shapley
+  top_k: 4
+  parameters:
+    attributions_file: clean_attributions.csv
+checks:
+  reason_codes:
+    id_column: client_id
+    decision_threshold: 0.5
+    # 1,775 of 24,000 train rows score above the threshold; 300 of them are
+    # sampled — at 30k scale permutation SHAP is the cost centre, and these
+    # sizes keep the full demo sequence around two minutes (measured; README).
+    max_denied_sample: 300
+    # measured background stability (top-4 jaccard across two seeded
+    # backgrounds) before setting this: 0.744 at 40, 0.819 at 80, 0.916 at
+    # 120 — 40 would trip the 0.8 sensitivity flag, so 120 it is. The
+    # make_demo.py export uses the same size and seed.
+    background_size: 120
+  monotonicity:
+    max_violation_rate: 0.05
+  features:
+    # mean-|attribution| share screens average over 300 rows, so per-row
+    # background noise cannot flip them; 40 keeps the two leaky checks fast
+    sample_size: 300
+    background_size: 40
+  exclusions:
+    # strongest real association observed on the train split before setting
+    # this: marriage ~ age at 0.469 (married clients are older). Threshold
+    # sits above that benign maximum so the screen surfaces it without
+    # failing on it; the next-strongest pair observed was marriage ~
+    # education at 0.131.
+    max_association: 0.55
+    sample_size: 300
+    background_size: 40
+report:
+  target_column: bad
+  # 500 seeded resamples on 24,000 rows rendered in 9.5s on the reference
+  # machine (200 rendered in 5.6s; the tighter intervals are worth the 4s)
+  n_bootstrap: 500

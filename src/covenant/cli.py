@@ -229,15 +229,15 @@ def check_all(
         ("exclusions", run_exclusions_check, _summary_exclusions),
     ]
     worst_exit = 0
-    n_ran = 0
+    n_skipped = 0
     lines = []
     for name, runner, summarise in runners:
         try:
             record = runner(model, data, covenants, None)
         except (CheckSetupError, DeclaredMethodError, RegistrationError, FileNotFoundError) as err:
+            n_skipped += 1
             lines.append(f"  {name:<14s} SKIPPED  {err}")
             continue
-        n_ran += 1
         record.write(Store(store))
         verdict = "PASS  " if record.passed else "BREACH"
         lines.append(f"  {name:<14s} {verdict}  {summarise(record)}")
@@ -246,10 +246,14 @@ def check_all(
     typer.echo("covenant check all")
     for line in lines:
         typer.echo(line)
-    if n_ran == 0:
+    if n_skipped:
+        # A gate that silently stops running one of its checks must not stay
+        # green: a renamed artefact or a filtered row would otherwise switch
+        # off the adverse-action check while CI keeps passing — the exact
+        # silent degradation a governance gate exists to prevent.
         typer.echo(
-            "error: no check could run — a gate that checks nothing must not "
-            "pass; fix the setup errors above",
+            f"error: {n_skipped} configured check(s) could not run — an "
+            "incomplete gate must not pass; fix the setup errors above",
             err=True,
         )
         raise typer.Exit(2)

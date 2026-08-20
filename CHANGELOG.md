@@ -2,7 +2,22 @@
 
 ## Unreleased
 
+### Changed
+- `covenant check all` now exits 2 when any configured check is skipped by
+  a setup or artefact error: an incomplete gate must not pass. Found by a
+  cold-start "stranger test" of the published package — a renamed
+  attributions file silently switched off the adverse-action check while
+  CI stayed green.
+
 ### Added
+- **Taiwan Credit demo** (`examples/taiwan_credit/`): 30,000 real
+  credit-card clients (UCI, Yeh & Lien 2009, committed). Leaky model on
+  `sex`/`marriage` breaches checks 3-4; clean model passes all four with
+  measured thresholds; ~60s full sequence at 30k rows, CI-asserted.
+- **HMDA mortgage demo** (`examples/hmda_mortgage/`): 25,273 real 2023
+  Rhode Island applications (CFPB public data, committed) with
+  `derived_race`/`derived_sex`/`derived_ethnicity` excluded by covenant
+  and the historical-decision framing stated explicitly. CI-asserted.
 - **German Credit demo** (`examples/german_credit/`): Covenant on real,
   recognized public data (UCI / OpenML `credit-g`, committed for offline
   determinism). A model quietly fitted on `personal_status` (sex/marital

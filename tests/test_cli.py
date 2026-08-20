@@ -220,11 +220,12 @@ def test_check_all_combined_exit_code(fitted: dict, tmp_path: Path) -> None:
     assert "monotonicity" in result.output
 
 
-def test_check_all_skips_broken_artefact_and_still_runs_rest(
+def test_check_all_fails_when_configured_check_cannot_run(
     fitted: dict, tmp_path: Path
 ) -> None:
-    """A missing reason-code artefact must skip check 1, not abort checks 2-4
-    (review finding)."""
+    """A missing reason-code artefact must not abort checks 2-4, but an
+    incomplete gate must not pass either (stranger-test blocker): the run
+    reports the skip AND exits 2."""
     covenants = tmp_path / "covenants.yaml"
     covenants.write_text(
         fitted["covenants"].read_text().replace("coefficients_live.csv", "missing.csv")
@@ -244,8 +245,9 @@ def test_check_all_skips_broken_artefact_and_still_runs_rest(
     )
     out = combined_output(result)
     assert "reason-codes   SKIPPED" in out
-    assert "monotonicity" in out and "PASS" in out
-    assert result.exit_code == 0, out  # remaining checks all pass
+    assert "monotonicity" in out and "PASS" in out  # the rest still ran
+    assert "incomplete gate must not pass" in out
+    assert result.exit_code == 2, out
 
 
 def test_check_all_exits_2_when_nothing_ran(fitted: dict, tmp_path: Path) -> None:
@@ -272,9 +274,6 @@ def test_check_all_exits_2_when_nothing_ran(fitted: dict, tmp_path: Path) -> Non
     )
     out = combined_output(result)
     # reason-codes (missing artefact), monotonicity (no directions) and
-    # exclusions (no excluded vars) are skipped; features may still run.
+    # exclusions (no excluded vars) are all skipped: incomplete gate, exit 2.
     assert "SKIPPED" in out
-    if "features" in out and "PASS" in out:
-        assert result.exit_code in (0, 1)
-    else:
-        assert result.exit_code == 2
+    assert result.exit_code == 2
