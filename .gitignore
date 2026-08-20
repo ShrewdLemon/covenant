@@ -35,3 +35,18 @@ examples/german_credit/holdout.csv
 examples/german_credit/clean_attributions.csv
 examples/german_credit/.covenant/
 examples/german_credit/report/
+
+# taiwan_credit / hmda_mortgage demo generated artifacts (recreate with
+# make_demo.py; the data/ directories are committed on purpose)
+examples/taiwan_credit/*.joblib
+examples/taiwan_credit/train.csv
+examples/taiwan_credit/holdout.csv
+examples/taiwan_credit/*_attributions.csv
+examples/taiwan_credit/.covenant/
+examples/hmda_mortgage/*.joblib
+examples/hmda_mortgage/train.csv
+examples/hmda_mortgage/holdout.csv
+examples/hmda_mortgage/*_attributions.csv
+examples/hmda_mortgage/.covenant/
+examples/taiwan_credit/report/
+examples/hmda_mortgage/report/

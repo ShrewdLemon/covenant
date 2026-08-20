@@ -172,6 +172,21 @@ The leaky model's accuracy gives nothing away — only testing the artefact
 against its documented claims catches it. CI asserts all of these exit
 codes on every commit.
 
+### More real data: Taiwan and US mortgages
+
+[`examples/taiwan_credit/`](examples/taiwan_credit/) — 30,000 real
+credit-card clients (Yeh & Lien 2009, UCI). `sex` and `marriage` are
+excluded by covenant; the leaky model breaches, the clean one passes with
+the real associations surfaced (marriage ~ age at 0.47, honestly below a
+measured threshold), and the whole 30k-row sequence runs in about a minute.
+
+[`examples/hmda_mortgage/`](examples/hmda_mortgage/) — 25,273 real 2023
+Rhode Island mortgage applications (HMDA, CFPB public data) with
+`derived_race`, `derived_sex` and `derived_ethnicity` excluded by covenant.
+The target is the lender's historical decision, and the demo says exactly
+what that means: verifying documented exclusions against the artefact, not
+endorsing the model. CI asserts every exit code for both.
+
 ### Synthetic: the broken scorecard
 
 `examples/broken_scorecard/` fits a logistic scorecard, then derives

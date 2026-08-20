@@ -1,0 +1,24 @@
+owner:
+  name: Demo Owner
+  email: owner@example.com
+intended_use: >
+  Demonstration scorecard on the public "Default of Credit Card Clients"
+  dataset (Yeh & Lien 2009; UCI #350, via OpenML) — 30,000 Taiwanese
+  credit-card clients from 2005. Exists to show governance checks at
+  30k-row scale on real data; makes no real decisions.
+limitations:
+  - 30,000 clients from one Taiwanese bank in April-September 2005; not
+    representative of any current book.
+  - pay_status is the dataset's ordinal repayment-status code (-2..8)
+    treated as numeric; the original coding of its negative values is
+    ambiguous in the source documentation.
+  - The demographic columns are kept in the snapshot solely so the
+    exclusion checks have something real to test; they never feed the
+    clean model.
+materiality:
+  tier: 3
+  justification: >
+    Public-dataset demonstration model with zero portfolio exposure;
+    lowest tier applies because it makes no real decisions.
+review_date: 2027-02-01
+vendor: null

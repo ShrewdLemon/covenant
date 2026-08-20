@@ -1,0 +1,24 @@
+owner:
+  name: Demo Owner
+  email: owner@example.com
+intended_use: >
+  Demonstration model on public CFPB HMDA data (2023, Rhode Island). The
+  target is the lender's historical denial decision, not creditworthiness,
+  so the model reproduces whatever bias those decisions contain; it exists
+  to show governance checks verifying documented claims on real
+  fair-lending data and makes no real decisions.
+limitations:
+  - The target encodes historical lender decisions, biases included; scores
+    must never be read as creditworthiness.
+  - Single state (RI) and single year (2023); not representative of any
+    current book.
+  - HMDA reports income and DTI as filed at application, with DTI and age
+    only as coarse ranges.
+  - The proxy screen is pairwise; proxies are surfaced, not proven absent.
+materiality:
+  tier: 3
+  justification: >
+    Public-dataset demonstration model with zero portfolio exposure;
+    lowest tier applies because it makes no real decisions.
+review_date: 2027-02-01
+vendor: null

@@ -1,0 +1,78 @@
+# The covenant for the HMDA mortgage demo: 10 documented underwriting
+# features, three exclusions that are the whole point. The target is the
+# lender's historical denial decision, so the model inherits whatever bias
+# those decisions contain — which is exactly why the exclusion of
+# derived_race, derived_sex and derived_ethnicity must be verified against
+# the deployed artefact, not just written down. The clean model honours
+# this covenant; the leaky model breaches it.
+covenant_schema: 1
+model_name: hmda-ri-2023
+features:
+  # numeric — directions declared only where the fitted model supports the
+  # claim (make_demo.py prints the coefficients; measured on this split:
+  # loan_amount -0.397, loan_to_value_ratio +0.221 in scaled space).
+  # income (+0.016) and property_value (+0.040) sit near zero once the
+  # debt_to_income_ratio buckets are in, so no direction is declared —
+  # the intuitive "higher income lowers denial risk" is NOT supported by
+  # this fitted model and declaring it would be a false documented claim.
+  - name: loan_amount
+    dtype: numeric
+    direction: decreases_risk
+  - name: income
+    dtype: numeric
+  - name: property_value
+    dtype: numeric
+  - name: loan_to_value_ratio
+    dtype: numeric
+    direction: increases_risk
+  # categorical (debt_to_income_ratio and applicant_age arrive as HMDA
+  # range strings, so they are categorical here)
+  - name: debt_to_income_ratio
+    dtype: categorical
+  - name: applicant_age
+    dtype: categorical
+  - name: loan_purpose
+    dtype: categorical
+  - name: loan_type
+    dtype: categorical
+  - name: occupancy_type
+    dtype: categorical
+  - name: derived_dwelling_category
+    dtype: categorical
+excluded:
+  - name: derived_race
+    reason: protected attribute (ECOA / Regulation B) — race
+  - name: derived_sex
+    reason: protected attribute (ECOA / Regulation B) — sex
+  - name: derived_ethnicity
+    reason: protected attribute (ECOA / Regulation B) — ethnicity
+reason_codes:
+  # production exports per-applicant SHAP values for denied applications;
+  # Covenant verifies the export against the live model's behaviour.
+  # top_k 4 mirrors Regulation B's at-most-four adverse-action reasons.
+  method: shapley
+  top_k: 4
+  parameters:
+    attributions_file: clean_attributions.csv
+checks:
+  reason_codes:
+    id_column: application_id
+    decision_threshold: 0.5
+    max_denied_sample: 60
+    background_size: 40
+  monotonicity:
+    max_violation_rate: 0.05
+  features:
+    sample_size: 120
+    background_size: 40
+  exclusions:
+    # Policy: the schema default. Measured first on this split: the
+    # strongest association the screen finds is derived_sex ~ income at
+    # 0.18 (then derived_race ~ loan_to_value_ratio at 0.15) — real,
+    # surfaced below the threshold, and reported in every check record.
+    max_association: 0.5
+    sample_size: 120
+    background_size: 40
+report:
+  target_column: denied
+  n_bootstrap: 200
