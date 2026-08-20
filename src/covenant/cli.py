@@ -318,9 +318,13 @@ def _print_exclusions_report(record, path: str) -> None:
     verdict = "PASS" if record.passed else "BREACH (fail)"
     m = record.metrics
     typer.echo(f"check exclusions — {record.model_name}: {verdict}")
+    pair = record.details.get("max_association_pair")
+    pair_note = (
+        f"  [{pair['excluded']} ~ {pair['feature']}, {pair['method']}]" if pair else ""
+    )
     typer.echo(
         f"  max association observed {m['max_association_observed']:.3f}"
-        f"  (threshold {record.thresholds['max_association']:.2f})"
+        f"  (threshold {record.thresholds['max_association']:.2f}){pair_note}"
     )
     flagged = record.details.get("flagged_pairs", [])
     if flagged:
@@ -350,7 +354,7 @@ def _print_reason_code_report(record, path: str) -> None:
     )
     typer.echo(
         f"  background stability of measured side: {m['background_jaccard']:.3f}"
-        + ("  [sensitive — treat measured side with caution]"
+        + ("  [sensitive — raise checks.reason_codes.background_size]"
            if record.details.get("background_sensitive") else "")
     )
     path_used = record.details.get("attribution_path")
@@ -502,7 +506,15 @@ def report(
     covenants: Path = typer.Option("covenants.yaml", "--covenants", help="The model's covenants."),
     out: Path = typer.Option("covenant-report", "--out", help="Output directory."),
     holdout: Path | None = typer.Option(
-        None, "--holdout", help="Optional holdout snapshot for stability (PSI/CSI)."
+        None,
+        "--holdout",
+        help="Optional holdout snapshot: drives stability (PSI/CSI) and "
+        "out-of-sample discrimination/calibration.",
+    ),
+    governance: Path | None = typer.Option(
+        None,
+        "--governance",
+        help="Optional governance record to embed (owner, materiality, review date).",
     ),
     target: str | None = typer.Option(
         None, "--target", help="Override report.target_column from the covenants."
@@ -521,7 +533,13 @@ def report(
     overrides = {"target_column": target} if target else None
     try:
         path = build_report(
-            model, data, covenants, out, holdout_path=holdout, config_overrides=overrides
+            model,
+            data,
+            covenants,
+            out,
+            holdout_path=holdout,
+            governance_path=governance,
+            config_overrides=overrides,
         )
     except (CheckSetupError, DeclaredMethodError, RegistrationError, FileNotFoundError) as err:
         typer.echo(f"error: {err}", err=True)

@@ -128,7 +128,7 @@ def main() -> None:
 
     model = CovenantModel(clean, DOCUMENTED)
     categorical = [c for c in DOCUMENTED if c not in NUMERIC]
-    background = sample_background(train, DOCUMENTED, 40, 0)
+    background = sample_background(train, DOCUMENTED, 150, 0)
     denied = train[model.p_bad(train) >= 0.5].reset_index(drop=True)
     attributions, path = explain(
         model, denied[DOCUMENTED], background, categorical, 0, npermutations=2

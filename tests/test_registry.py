@@ -53,7 +53,21 @@ def test_register_rejects_missing_feature(fitted: dict, store_dir: Path, tmp_pat
     bad.write_text(
         fitted["covenants"].read_text().replace("name: dti", "name: not_a_column")
     )
+    coefficients = fitted["root"] / "coefficients_live.csv"
+    (tmp_path / "coefficients_live.csv").write_text(coefficients.read_text())
     with pytest.raises(RegistrationError, match="not_a_column"):
+        register(fitted["model"], fitted["data"], bad, fitted["governance"], Store(store_dir))
+
+
+def test_register_rejects_missing_reason_code_artefact(
+    fitted: dict, store_dir: Path, tmp_path: Path
+) -> None:
+    """A covenant pointing at an artefact that does not exist is a claim that
+    cannot be tested; registration must say so immediately (stranger-test
+    finding: this used to surface only at check time)."""
+    bad = tmp_path / "covenants.yaml"
+    bad.write_text(fitted["covenants"].read_text())  # coefficients_live.csv absent here
+    with pytest.raises(RegistrationError, match="does not exist"):
         register(fitted["model"], fitted["data"], bad, fitted["governance"], Store(store_dir))
 
 

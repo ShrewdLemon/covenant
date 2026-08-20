@@ -164,8 +164,9 @@ covenant check exclusions model_leaky.joblib train.csv --covenants covenants.yam
 covenant check all model_clean.joblib train.csv --covenants covenants.yaml
 # PASS on all four checks — with the real associations the proxy screen
 # found (personal_status ~ num_dependents at 0.28) surfaced below threshold
-covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report/
-# AUC 0.827 [0.796, 0.857], score PSI train->holdout 0.059, byte-identical re-render
+covenant report model_clean.joblib train.csv --covenants covenants.yaml --governance governance.yaml --holdout holdout.csv --out report/
+# headline out-of-sample AUC 0.772 [0.692, 0.840]; all four check verdicts and the
+# governance record embedded; byte-identical re-render
 ```
 
 The leaky model's accuracy gives nothing away — only testing the artefact

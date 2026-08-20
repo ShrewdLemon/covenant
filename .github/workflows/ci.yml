@@ -71,8 +71,8 @@ jobs:
       - name: Report renders byte-identically twice
         working-directory: examples/broken_scorecard
         run: |
-          covenant report model.joblib train.csv --covenants covenants_fixed.yaml --out report_a
-          covenant report model.joblib train.csv --covenants covenants_fixed.yaml --out report_b
+          covenant report model.joblib train.csv --covenants covenants_fixed.yaml --governance governance.yaml --out report_a
+          covenant report model.joblib train.csv --covenants covenants_fixed.yaml --governance governance.yaml --out report_b
           diff -r report_a report_b
       - name: Register and diff both versions
         working-directory: examples/broken_scorecard
@@ -99,8 +99,8 @@ jobs:
       - name: Real-data report renders byte-identically twice
         working-directory: examples/german_credit
         run: |
-          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_a
-          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_b
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --governance governance.yaml --holdout holdout.csv --out report_a
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --governance governance.yaml --holdout holdout.csv --out report_b
           diff -r report_a report_b
       - name: Taiwan demo — build, leaky breaches, clean passes, report byte-identical
         working-directory: examples/taiwan_credit
@@ -114,8 +114,8 @@ jobs:
           set -e
           test "$features" -eq 1 && test "$exclusions" -eq 1
           covenant check all model_clean.joblib train.csv --covenants covenants.yaml
-          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_a
-          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_b
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --governance governance.yaml --holdout holdout.csv --out report_a
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --governance governance.yaml --holdout holdout.csv --out report_b
           diff -r report_a report_b
       - name: HMDA demo — build, leaky breaches, clean passes, report byte-identical
         working-directory: examples/hmda_mortgage
@@ -129,8 +129,8 @@ jobs:
           set -e
           test "$features" -eq 1 && test "$exclusions" -eq 1
           covenant check all model_clean.joblib train.csv --covenants covenants.yaml
-          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_a
-          covenant report model_clean.joblib train.csv --covenants covenants.yaml --holdout holdout.csv --out report_b
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --governance governance.yaml --holdout holdout.csv --out report_a
+          covenant report model_clean.joblib train.csv --covenants covenants.yaml --governance governance.yaml --holdout holdout.csv --out report_b
           diff -r report_a report_b
 
   typecheck:

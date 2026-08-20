@@ -58,9 +58,45 @@ def load_data(path: str | Path) -> pd.DataFrame:
     path = Path(path)
     if path.suffix in (".parquet", ".pq"):
         return pd.read_parquet(path)
-    if path.suffix == ".csv":
+    if path.suffix == ".csv" or path.name.endswith(".csv.gz"):
         return pd.read_csv(path)
-    raise RegistrationError(f"unsupported data format {path.suffix!r}; use .csv or .parquet")
+    raise RegistrationError(
+        f"unsupported data format {path.suffix!r}; use .csv, .csv.gz or .parquet"
+    )
+
+
+_ARTEFACT_PARAMETER_KEYS = (
+    "coefficients",
+    "points_table",
+    "bins_table",
+    "attributions_file",
+    "reasons_file",
+)
+
+
+def validate_reason_code_artefacts(
+    covenants: ModelCovenants, covenants_dir: Path
+) -> None:
+    """Fail registration when a declared reason-code artefact is missing.
+
+    The stranger test found this the hard way: registration succeeded, then
+    ``check all`` discovered the missing file at check time. A covenant that
+    points at an artefact which does not exist is a claim that cannot be
+    tested — reject it while the author is still looking at the screen.
+    """
+    for key in _ARTEFACT_PARAMETER_KEYS:
+        ref = covenants.reason_codes.parameters.get(key)
+        if ref is None:
+            continue
+        path = Path(ref)
+        if not path.is_absolute():
+            path = covenants_dir / path
+        if not path.exists():
+            raise RegistrationError(
+                f"reason_codes.parameters.{key} points at {path}, which does "
+                "not exist; the declared reason-code artefact must be present "
+                "at registration so the claim stays testable"
+            )
 
 
 def register(
@@ -73,6 +109,7 @@ def register(
 ) -> ModelRecord:
     covenants = load_covenants(covenants_path)
     governance = load_governance(governance_path)
+    validate_reason_code_artefacts(covenants, Path(covenants_path).resolve().parent)
     data = load_data(data_path)
 
     missing = [f for f in covenants.feature_names() if f not in data.columns]
