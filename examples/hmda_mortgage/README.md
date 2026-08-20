@@ -79,7 +79,7 @@ Nothing about the leaky model's accuracy betrays any of this.
 ```text
 $ covenant check all model_clean.joblib train.csv --covenants covenants.yaml
 covenant check all
-  reason-codes   PASS    top-1 1.000  jaccard 0.987
+  reason-codes   PASS    top-1 1.000  jaccard 1.000
   monotonicity   PASS    worst violation 0.000
   features       PASS    undocumented 0  unused 0  dead 1
   exclusions     PASS    max association 0.18  proxy flags 0
@@ -93,18 +93,19 @@ them below the declared 0.5 threshold: `derived_sex` ~ `income` at 0.18,
 absent**: a pairwise screen cannot rule out a multivariate proxy, and
 every check record says so.
 
-Two more honest flags the passing run still raises: `property_value` is
-documented but measurably inert (0.02% of attribution mass — a
-dead-feature warning, not a breach), and the reason-codes record marks
-its measured side `background_sensitive: true` (top-4 agreement across
-two seeded backgrounds is 0.77, below the 0.8 floor) rather than hiding
-how much the explainer moves.
+One more honest flag the passing run still raises: `property_value` is
+documented but measurably inert (a dead-feature warning, not a breach).
+An earlier build also flagged the measured side `background_sensitive`
+(0.78 across two seeded 40-row backgrounds, below the 0.8 floor); raising
+`background_size` to 150 — nearly free now that the one-hot logistic
+pipeline takes the exact attribution path — measures 0.827 and clears the
+flag. Run, observe, then set.
 
 ## The report, on real outcomes
 
 ```bash
 covenant report model_clean.joblib train.csv --covenants covenants.yaml \
-    --holdout holdout.csv --out report/
+    --governance governance.yaml --holdout holdout.csv --out report/
 ```
 
 Real numbers with real intervals: AUC 0.8352 [0.8251, 0.8455] against

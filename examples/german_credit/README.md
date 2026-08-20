@@ -54,7 +54,7 @@ check exclusions — german-credit: BREACH (fail)
 ```text
 $ covenant check all model_clean.joblib train.csv --covenants covenants.yaml
 covenant check all
-  reason-codes   PASS    top-1 0.950  jaccard 0.900
+  reason-codes   PASS    top-1 0.967  jaccard 0.925
   monotonicity   PASS    worst violation 0.000
   features       PASS    undocumented 0  unused 0  dead 0
   exclusions     PASS    max association 0.28  proxy flags 0
@@ -71,15 +71,17 @@ so.
 
 ```bash
 covenant report model_clean.joblib train.csv --covenants covenants.yaml \
-    --holdout holdout.csv --out report/
+    --governance governance.yaml --holdout holdout.csv --out report/
 ```
 
-Real numbers with real intervals: AUC 0.827 [0.796, 0.857], score PSI
-train → holdout 0.059 with a per-feature CSI table, and the logistic
-challenger comparison (ΔAUC +0.066 [0.054, 0.080] — near zero by
-construction here, since the primary *is* a logistic pipeline). Rendered
-byte-identically on every re-run; CI proves it with a double render and
-`diff -r`.
+Real numbers with real intervals, and since v0.5 the headline is
+**out-of-sample**: holdout AUC 0.772 [0.692, 0.840] leads, the in-sample
+0.827 follows explicitly labeled as flattering the model. Score PSI
+train → holdout 0.059 with a per-feature CSI table, all four covenant
+check verdicts embedded with their record hashes, the governance record
+(owner, materiality tier and its justification verbatim), and the
+logistic challenger comparison. Rendered byte-identically on every
+re-run; CI proves it with a double render and `diff -r`.
 
 ## Why this demo matters
 

@@ -129,6 +129,7 @@ def run_exclusions_check(
     attribution_breach = False
     max_attribution = 0.0
     max_association = 0.0
+    max_association_pair: dict | None = None
     n_pairs = 0
 
     for excluded in covenants.excluded:
@@ -151,7 +152,14 @@ def run_exclusions_check(
                 continue
             strength, method = association(data[excluded.name], data[feature])
             n_pairs += 1
-            max_association = max(max_association, strength)
+            if strength > max_association:
+                max_association = strength
+                max_association_pair = {
+                    "excluded": excluded.name,
+                    "feature": feature,
+                    "strength": round(strength, 4),
+                    "method": method,
+                }
             if strength > config.max_association:
                 pair = {
                     "excluded": excluded.name,
@@ -216,6 +224,7 @@ def run_exclusions_check(
         details={
             "by_variable": by_variable,
             "flagged_pairs": flagged_pairs,
+            "max_association_pair": max_association_pair,
             "attribution_path": attribution_path,
             "note": (
                 "the proxy screen reports pairwise association between "

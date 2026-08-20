@@ -25,6 +25,7 @@ theme:
 
 nav:
   - Home: index.md
+  - Reference (covenants.yaml & artefacts): reference.md
   - Regulatory mapping: MAPPING.md
   - Research guide: research-guide.md
 

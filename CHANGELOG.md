@@ -1,8 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-08-20
+
+### Fixed
+- **Confirmed misalignment bug**: `configured_directions` no longer aligns a
+  bare monotone-constraint sequence read off a pipeline's final step to the
+  covenant's feature order — the transformed column order need not match,
+  and the guess was measured mislabeling a categorical as `increases_risk`.
+  Unreadable constraints are now recorded as unreadable.
 
 ### Changed
+- **Exact attribution through pipelines**: one-hot `ColumnTransformer` +
+  `LogisticRegression` scorecards now take the closed-form `linear-exact`
+  path (~160x faster than permutation SHAP, exact to machine precision,
+  one-hot columns aggregated per raw feature), and simple pipelines around
+  tree boosters take `tree-shap` (~19x). Covenant feature order no longer
+  needs to match the model's fitted order (resolved by name).
+- **`covenant report` is now the full evidence document**: metrics sections
+  are labeled with their snapshot, `--holdout` drives out-of-sample
+  discrimination/calibration as the headline (in-sample follows, labeled as
+  flattering), all four check verdicts are embedded with record hashes, and
+  `--governance` embeds owner, materiality tier + justification verbatim,
+  review date and vendor block.
+- `covenant register` fails when a declared reason-code artefact file does
+  not exist (a claim that cannot be tested is rejected at write time).
 - `covenant check all` now exits 2 when any configured check is skipped by
   a setup or artefact error: an incomplete gate must not pass. Found by a
   cold-start "stranger test" of the published package — a renamed
@@ -10,6 +31,14 @@
   CI stayed green.
 
 ### Added
+- `docs/reference.md`: the complete schema reference — every covenants.yaml
+  and governance.yaml key with types/defaults/allowed values, exact column
+  contracts for all five reason-code artefact files, exit-code semantics
+  and the record/replayability conventions. On the docs site nav.
+- `load_data` accepts `.csv.gz`.
+- `check exclusions` prints and records the argmax association pair; the
+  background-sensitivity flag now names the knob that fixes it
+  (`checks.reason_codes.background_size`).
 - **Taiwan Credit demo** (`examples/taiwan_credit/`): 30,000 real
   credit-card clients (UCI, Yeh & Lien 2009, committed). Leaky model on
   `sex`/`marriage` breaches checks 3-4; clean model passes all four with

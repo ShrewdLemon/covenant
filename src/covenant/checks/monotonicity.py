@@ -47,7 +47,8 @@ def configured_directions(
     (class index 1); when ``p_bad`` is the other column the sign flips.
     """
     est = estimator
-    if hasattr(est, "steps"):  # sklearn Pipeline: constraints sit on the final step
+    was_pipeline = hasattr(est, "steps")
+    if was_pipeline:  # sklearn Pipeline: constraints sit on the final step
         est = est.steps[-1][1]
     if not hasattr(est, "get_params"):
         return None
@@ -70,7 +71,16 @@ def configured_directions(
         by_feature = {str(k): int(v) for k, v in raw.items()}
     else:
         values = [int(v) for v in np.asarray(raw).ravel()]
-        names = list(getattr(est, "feature_names_in_", [])) or feature_names
+        names = list(getattr(est, "feature_names_in_", []))
+        if not names:
+            if was_pipeline:
+                # The final step was fitted on transformed columns whose order
+                # need not match the covenant's; aligning a bare sequence to
+                # the declared list here silently labels the wrong features
+                # (measured: a categorical reported as increases_risk).
+                # Refusing to guess records constraints as unreadable instead.
+                return None
+            names = feature_names
         if len(values) != len(names):
             return None  # cannot align a bare sequence confidently
         by_feature = dict(zip([str(n) for n in names], values, strict=True))

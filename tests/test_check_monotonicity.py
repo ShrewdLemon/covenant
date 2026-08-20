@@ -110,3 +110,48 @@ def test_configured_directions_flip_for_bad_class_zero() -> None:
 
 def test_configured_directions_absent() -> None:
     assert configured_directions(_FakeBooster(None), ["a", "b", "c"]) is None
+
+
+def test_configured_directions_refuse_pipeline_positional_guess() -> None:
+    """A bare constraint sequence on a pipeline's final step must not be
+    aligned to the covenant's feature order (confirmed misalignment bug)."""
+    from sklearn.compose import ColumnTransformer
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import OrdinalEncoder
+
+    rng = np.random.default_rng(0)
+    import pandas as pd
+
+    frame = pd.DataFrame(
+        {
+            "cat": rng.choice(["a", "b"], 200),
+            "num1": rng.normal(size=200),
+            "num2": rng.normal(size=200),
+        }
+    )
+    y = (frame["num1"] + rng.normal(0, 0.5, 200) > 0).astype(int)
+    pipe = Pipeline(
+        [
+            (
+                "prep",
+                ColumnTransformer(
+                    [
+                        ("num", "passthrough", ["num1", "num2"]),
+                        ("cat", OrdinalEncoder(), ["cat"]),
+                    ]
+                ),
+            ),
+            (
+                "gbm",
+                HistGradientBoostingClassifier(
+                    monotonic_cst=[1, -1, 0], random_state=0
+                ),
+            ),
+        ]
+    )
+    pipe.fit(frame, y)
+    # Covenant declares features as [cat, num1, num2]; the transformed order
+    # is [num1, num2, cat]. Positional alignment would label 'cat' as
+    # increases_risk. The only safe answer is None (unreadable).
+    assert configured_directions(pipe, ["cat", "num1", "num2"]) is None

@@ -59,12 +59,12 @@ checks:
     id_column: application_id
     decision_threshold: 0.5
     max_denied_sample: 60
-    background_size: 40
+    background_size: 150
   monotonicity:
     max_violation_rate: 0.05
   features:
     sample_size: 120
-    background_size: 40
+    background_size: 150
   exclusions:
     # Policy: the schema default. Measured first on this split: the
     # strongest association the screen finds is derived_sex ~ income at
@@ -72,7 +72,7 @@ checks:
     # surfaced below the threshold, and reported in every check record.
     max_association: 0.5
     sample_size: 120
-    background_size: 40
+    background_size: 150
 report:
   target_column: denied
   n_bootstrap: 200
