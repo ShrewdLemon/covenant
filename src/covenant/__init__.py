@@ -4,4 +4,4 @@ A model's documentation is a set of testable claims about its behaviour,
 so test them. Install as ``pip install covenants``, import as ``covenant``.
 """
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"

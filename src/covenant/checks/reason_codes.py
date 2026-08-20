@@ -32,9 +32,6 @@ from covenant.schema import ModelCovenants, ReasonCodeCheckConfig, ReasonCodeMet
 
 CHECK_NAME = "reason-codes"
 
-BACKGROUND_SENSITIVITY_FLOOR = 0.8
-
-
 class CheckSetupError(ValueError):
     pass
 
@@ -132,6 +129,13 @@ def run_reason_code_check(
         denied_idx, p_denied, declared_sets, measured_sets, row_jaccard
     )
 
+    provenance = None
+    if covenants.reason_codes.method is ReasonCodeMethod.SHAPLEY:
+        provenance = _shapley_provenance_note(
+            covenants, X_denied, Path(covenants_path).resolve().parent,
+            ids, config.id_column, attributions,
+        )
+
     placebo = None
     if config.placebo:
         placebo = _placebo_subcheck(
@@ -181,9 +185,10 @@ def run_reason_code_check(
         details={
             "by_score_band": strata,
             "worst_disagreements": worst,
-            "background_sensitive": background_jaccard < BACKGROUND_SENSITIVITY_FLOOR,
+            "background_sensitive": background_jaccard < config.background_stability_floor,
             "attribution_path": attribution_path,
             "placebo": placebo,
+            "shapley_export_provenance": provenance,
             "note": (
                 "measured side approximates the model, not ground truth; "
                 "attribution_path names whether it is exact or sampled, and "
@@ -323,3 +328,47 @@ def _worst_disagreements(
             }
         )
     return rows
+
+
+def _shapley_provenance_note(
+    covenants: ModelCovenants,
+    X: pd.DataFrame,
+    covenants_dir: Path,
+    ids,
+    id_column: str | None,
+    measured: pd.DataFrame,
+) -> dict:
+    """Flag a shapley export that is numerically indistinguishable from the
+    check's own measured attributions.
+
+    Such an export was almost certainly generated from the same model with
+    the same explainer settings — which verifies the artefact is *fresh*,
+    but is not independent evidence about what production actually sends.
+    An export produced by a separate production pipeline carries its own
+    background, seed and library versions and will differ measurably even
+    when it agrees in rank."""
+    from covenant.declared import _shapley_attributions
+
+    try:
+        declared = _shapley_attributions(
+            covenants.reason_codes, X, ids, id_column or "", covenants_dir
+        )
+    except Exception:  # the main declared pass already surfaced any error
+        return {"evaluated": False}
+    diff = np.abs(declared.to_numpy(dtype=float) - measured.to_numpy(dtype=float))
+    scale = np.abs(measured.to_numpy(dtype=float)).mean() or 1.0
+    indistinguishable = bool(diff.max() <= 1e-6 + 1e-4 * scale)
+    note = (
+        "declared export is numerically indistinguishable from the check's "
+        "own measured attributions: this verifies the artefact is fresh, "
+        "not that production independently produces these reasons"
+        if indistinguishable
+        else "declared export differs measurably from the check's own "
+        "attributions, as an independently produced artefact should"
+    )
+    return {
+        "evaluated": True,
+        "indistinguishable_from_measured": indistinguishable,
+        "max_abs_difference": round(float(diff.max()), 8),
+        "note": note,
+    }

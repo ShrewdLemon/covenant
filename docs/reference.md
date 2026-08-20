@@ -100,11 +100,12 @@ declared adverse-action reasons versus measured SHAP attributions of
 | `min_topk_jaccard` | float | `0.60` | 0–1 | Minimum mean Jaccard similarity between declared and measured top-k reason sets. |
 | `decision_threshold` | float | `0.5` | strictly between 0 and 1 | An applicant with `p_bad >= decision_threshold` counts as denied. Fewer than 10 denied applicants is a setup error (exit 2). Overridable per run with `covenant check reason-codes --threshold`. |
 | `max_denied_sample` | int | `500` | >= 10 | When more rows are denied than this, a seeded random subsample of this size is evaluated. |
-| `background_size` | int | `200` | >= 10 | Rows in the SHAP background sample. A second background (seeded with `random_state + 1`) measures the measured side's own stability as `background_jaccard`; below 0.8 (fixed) the record is flagged background-sensitive. |
+| `background_size` | int | `200` | >= 10 | Rows in the SHAP background sample. A second background (seeded with `random_state + 1`) measures the measured side's own stability as `background_jaccard`; below `background_stability_floor` the record is flagged background-sensitive. |
 | `id_column` | string or null | `null` | — | Stable row key joining the data snapshot to a production artefact. **Required** when `reason_codes.method` is `custom` or `shapley`; must be a column of the data snapshot at check time. |
 | `placebo` | bool | `true` | — | Run the Krivorotov & Richey placebo sub-check: shuffle a declared-irrelevant feature and confirm neither side's reasons move. |
 | `placebo_epsilon` | float | `1e-3` | >= 0 | Share of total mean \|attribution\| mass below which a feature counts as irrelevant enough to serve as the placebo (scale-invariant across attribution paths). The qualifying feature with the smallest share is used; if none qualifies the placebo is skipped with a note. |
 | `max_placebo_shift` | float | `0.10` | 0–1 | Fraction of denied rows whose top-k set may change under the placebo shuffle before the explanation pipeline is flagged as noisy. The flag is a diagnostic of the pipeline, recorded in the details — it never fails the check on its own. |
+| `background_stability_floor` | float | `0.8` | 0–1 | Measured-side top-k jaccard across the two seeded backgrounds below which the record is flagged `background_sensitive`. Raise `background_size` to clear the flag; the floor itself is covenant policy. |
 | `random_state` | int | `0` | — | Seed for the denied subsample, backgrounds and placebo shuffle. |
 
 For the file-based methods (`custom`, `shapley`) the declared side is
@@ -175,6 +176,7 @@ threshold and (if `fail_on_proxies` is true) no pair exceeds
 | `fail_on_proxies` | bool | `true` | — | Whether a flagged proxy fails the check or only warns. |
 | `sample_size` | int | `300` | >= 20 | Rows in the seeded sample the attribution screen scores. |
 | `background_size` | int | `100` | >= 10 | Rows in the SHAP background sample. |
+| `association_sample_size` | int or null | `null` | >= 100 | Seeded row sample for the proxy screen; `null` screens the full snapshot. Set on very large books where rank correlations get slow. |
 | `random_state` | int | `0` | — | Seed for sampling. |
 
 When the estimator records no input names and the excluded variable is not
@@ -522,3 +524,23 @@ creates one.
 Covenant produces evidence; your validators and auditors decide. Nothing
 on this page — thresholds, defaults, or a green exit code — is a claim of
 compliance.
+
+
+## `covenant compare`
+
+`covenant compare MODEL_A MODEL_B DATA --covenants covenants.yaml [--target col]`
+scores both models on the covenant's declared features over one snapshot and
+writes a hash-stamped record to `.covenant/compare/`. Metrics: AUC, KS,
+Brier, ECE — each with a seeded bootstrap CI per model plus an **A − B
+paired-bootstrap delta** (identical resample rows applied to both score
+vectors); `significant` marks intervals excluding zero. Requires
+`report.target_column` (or `--target`). Exit 0 whenever the comparison
+computes — it is evidence, not a gate. Score on a holdout neither model was
+fitted to if the comparison should mean anything out of sample; the record
+names the snapshot it got.
+
+For `reason_codes.method: shapley`, Check 1's record also carries
+`details.shapley_export_provenance`: when the declared export is numerically
+indistinguishable from the check's own measured attributions, the record
+says so — that verifies the artefact is *fresh*, not that production
+independently produces these reasons.

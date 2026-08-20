@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.0 — 2026-08-20
+
+### Added
+- **`covenant compare A B DATA`**: champion vs challenger as a hash-stamped
+  record — AUC/KS/Brier/ECE per model with seeded bootstrap CIs plus
+  A−B paired-bootstrap deltas (identical resample rows on both score
+  vectors), significance marked when the interval excludes zero. Evidence,
+  not a gate; the record says which snapshot it was scored on.
+- **Shapley-export provenance**: when `reason_codes.method: shapley` and the
+  declared export is numerically indistinguishable from the check's own
+  measured attributions, the record says so — freshness verified, not
+  independent production evidence.
+- `covenant checks` listing now shows each record's model version id
+  (recomputed from its input hashes) and last-run timestamp from runs.log.
+- `checks.reason_codes.background_stability_floor` (default 0.8) — the
+  sensitivity floor is covenant policy, no longer a hardcoded constant.
+- `checks.exclusions.association_sample_size` — seeded row sample for the
+  proxy screen on very large books (default: full snapshot).
+
+### Deferred (documented, not shipped)
+- Exact tree-shap for HistGradientBoosting fitted on native pandas
+  categoricals: the fitted category mapping is only reachable through
+  sklearn private internals; the permutation fallback remains correct,
+  just slower, and the attribution docstring says so.
+
 ## 0.5.0 — 2026-08-20
 
 ### Fixed

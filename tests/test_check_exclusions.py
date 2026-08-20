@@ -166,3 +166,16 @@ def test_model_input_missing_from_snapshot_is_setup_error(tmp_path: Path) -> Non
     paths = _fixture(tmp_path, fit_on_gender=True, gender_in_snapshot=False)
     with pytest.raises(CheckSetupError, match="gender"):
         run_exclusions_check(*paths)
+
+
+def test_association_sample_size_bounds_the_screen(tmp_path: Path) -> None:
+    """A seeded association sample keeps the screen deterministic and cheap."""
+    paths = _fixture(tmp_path, proxy_gender=True)
+    full = run_exclusions_check(*paths)
+    sampled = run_exclusions_check(*paths, config_overrides={"association_sample_size": 300})
+    sampled_again = run_exclusions_check(
+        *paths, config_overrides={"association_sample_size": 300}
+    )
+    assert sampled.record_sha256 == sampled_again.record_sha256
+    # the strong proxy stays flagged under sampling
+    assert not full.passed and not sampled.passed
