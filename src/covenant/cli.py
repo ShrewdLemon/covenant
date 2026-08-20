@@ -422,6 +422,59 @@ def _print_monotonicity_report(record, path: str) -> None:
 
 @app.command()
 @_guard
+def compare(
+    model_a: Path = typer.Argument(help="Champion: persisted estimator with predict_proba."),
+    model_b: Path = typer.Argument(help="Challenger: persisted estimator with predict_proba."),
+    data: Path = typer.Argument(
+        help="Snapshot to score both models on — use a holdout neither was fitted to."
+    ),
+    covenants: Path = typer.Option("covenants.yaml", "--covenants", help="The model's covenants."),
+    store: str = StoreOption,
+    target: str | None = typer.Option(
+        None, "--target", help="Override report.target_column from the covenants."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print the comparison record as JSON."),
+) -> None:
+    """Champion vs challenger: paired-bootstrap deltas as a hashed record."""
+    from covenant.checks.reason_codes import CheckSetupError
+    from covenant.compare import compare_models
+    from covenant.registry import RegistrationError
+    from covenant.store import write_yaml
+
+    overrides = {"target_column": target} if target else None
+    try:
+        record = compare_models(model_a, model_b, data, covenants, overrides)
+    except (CheckSetupError, RegistrationError, FileNotFoundError) as err:
+        typer.echo(f"error: {err}", err=True)
+        raise typer.Exit(2) from err
+    path = Path(store) / "compare" / f"compare-{record['record_sha256'][:12]}.yaml"
+    write_yaml(path, record)
+    if as_json:
+        typer.echo(json.dumps(record, indent=2, default=str))
+        raise typer.Exit(0)
+    typer.echo(
+        f"covenant compare — {record['model_files']['model_a']} (A) vs "
+        f"{record['model_files']['model_b']} (B) on {record['config']['n_rows']} rows"
+    )
+    for name in ("roc_auc", "ks", "brier", "ece"):
+        a = record["metrics"]["model_a"][name]
+        b = record["metrics"]["model_b"][name]
+        d = record["deltas"][name]
+        diff, lo, hi = d["a_minus_b"]
+        marker = "  *" if d["significant"] else ""
+        typer.echo(
+            f"  {name:<8s} A {a[0]:.4f} [{a[1]:.4f}, {a[2]:.4f}]"
+            f"  B {b[0]:.4f} [{b[1]:.4f}, {b[2]:.4f}]"
+            f"  A-B {diff:+.4f} [{lo:+.4f}, {hi:+.4f}]"
+            f" ({d['better']} is better){marker}"
+        )
+    typer.echo("  * = paired-bootstrap interval excludes zero")
+    typer.echo(f"  {record['note']}")
+    typer.echo(f"  record: {path}")
+
+
+@app.command()
+@_guard
 def diff(
     model_name: str = typer.Argument(help="Registered model name."),
     version_a: str = typer.Argument(help="First version id (prefix ok)."),
@@ -471,6 +524,7 @@ def list_check_records(
     store: str = StoreOption,
 ) -> None:
     """List check records for a model, with verdicts."""
+    from covenant.hashing import version_id
     from covenant.store import read_yaml
 
     s = Store(store)
@@ -478,10 +532,28 @@ def list_check_records(
     if not paths:
         typer.echo(f"no check records for {model_name!r} under {store}/")
         return
+    last_run: dict[str, str] = {}
+    log = Path(store) / "checks" / model_name / "runs.log"
+    if log.exists():
+        for line in log.read_text().splitlines():
+            parts = line.split()
+            if len(parts) >= 3:
+                last_run[parts[2]] = parts[0]  # latest line per short hash wins
     for path in paths:
         record = read_yaml(path)
         verdict = "PASS  " if record.get("passed") else "BREACH"
-        typer.echo(f"{verdict} {record.get('check', '?'):<14s} {path.name}")
+        inputs = record.get("inputs", {})
+        version = "?"
+        if all(k in inputs for k in ("model_sha256", "data_sha256", "covenants_sha256")):
+            version = version_id(
+                inputs["model_sha256"], inputs["data_sha256"], inputs["covenants_sha256"]
+            )
+        short = str(record.get("record_sha256", ""))[:12]
+        stamp = last_run.get(short, "-")
+        typer.echo(
+            f"{verdict} {record.get('check', '?'):<14s} version {version}"
+            f"  last-run {stamp:<25s} {path.name}"
+        )
 
 
 @app.command("list")

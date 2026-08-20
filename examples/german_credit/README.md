@@ -54,7 +54,7 @@ check exclusions — german-credit: BREACH (fail)
 ```text
 $ covenant check all model_clean.joblib train.csv --covenants covenants.yaml
 covenant check all
-  reason-codes   PASS    top-1 0.967  jaccard 0.925
+  reason-codes   PASS    top-1 1.000  jaccard 1.000
   monotonicity   PASS    worst violation 0.000
   features       PASS    undocumented 0  unused 0  dead 0
   exclusions     PASS    max association 0.28  proxy flags 0

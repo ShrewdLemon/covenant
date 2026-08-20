@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from covenant.association import association
@@ -124,6 +125,20 @@ def run_exclusions_check(
         )
         n_attributed = len(X)
 
+    # The association screen defaults to the full snapshot; a seeded sample
+    # bounds its cost on very large books without changing determinism.
+    if (
+        config.association_sample_size is not None
+        and len(data) > config.association_sample_size
+    ):
+        rng = np.random.default_rng(config.random_state)
+        idx = np.sort(
+            rng.choice(len(data), size=config.association_sample_size, replace=False)
+        )
+        screen_data = data.iloc[idx]
+    else:
+        screen_data = data
+
     by_variable: list[dict] = []
     flagged_pairs: list[dict] = []
     attribution_breach = False
@@ -150,7 +165,9 @@ def run_exclusions_check(
         for feature in features:
             if feature == excluded.name:
                 continue
-            strength, method = association(data[excluded.name], data[feature])
+            strength, method = association(
+                screen_data[excluded.name], screen_data[feature]
+            )
             n_pairs += 1
             if strength > max_association:
                 max_association = strength

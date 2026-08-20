@@ -109,6 +109,14 @@ class ReasonCodeCheckConfig(StrictModel):
         description="Fraction of rows whose top-k may change under the "
         "placebo before the explanation pipeline is flagged as noisy.",
     )
+    background_stability_floor: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Top-k jaccard of the measured side across two seeded "
+        "backgrounds below which the record is flagged background_sensitive. "
+        "Raise checks.reason_codes.background_size to clear the flag.",
+    )
     random_state: int = 0
 
 
@@ -168,6 +176,13 @@ class ExclusionsCheckConfig(StrictModel):
     )
     sample_size: int = Field(default=300, ge=20)
     background_size: int = Field(default=100, ge=10)
+    association_sample_size: int | None = Field(
+        default=None,
+        ge=100,
+        description="Rows (seeded sample) the proxy screen computes "
+        "associations on; None uses the full snapshot. Set on very large "
+        "books where rank correlations over millions of rows get slow.",
+    )
     random_state: int = 0
 
 

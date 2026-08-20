@@ -101,3 +101,63 @@ def test_custom_reasons_missing_id_fails_loudly(
         run_reason_code_check(
             fitted_categorical["model"], fitted_categorical["data"], covenants
         )
+
+
+def test_configurable_background_floor(fitted: dict) -> None:
+    """The sensitivity floor is covenant policy, not a hardcoded constant."""
+    strict = run_reason_code_check(
+        fitted["model"], fitted["data"], fitted["covenants"],
+        {"background_stability_floor": 1.0},
+    )
+    assert strict.details["background_sensitive"] is True
+    lax = run_reason_code_check(
+        fitted["model"], fitted["data"], fitted["covenants"],
+        {"background_stability_floor": 0.0},
+    )
+    assert lax.details["background_sensitive"] is False
+
+
+def test_shapley_export_provenance_flag(fitted_categorical: dict, tmp_path: Path) -> None:
+    """An export generated from the check's own measured attributions must be
+    flagged as indistinguishable (freshness, not independence)."""
+
+    root = fitted_categorical["root"]
+    base = run_reason_code_check(
+        fitted_categorical["model"], fitted_categorical["data"], fitted_categorical["covenants"]
+    )
+    assert base.details["shapley_export_provenance"] is None  # method is custom
+
+    # Build a shapley covenant whose artefact IS the measured attributions.
+    from covenant.attribution import explain, sample_background
+    from covenant.model import CovenantModel
+    from covenant.registry import load_covenants, load_data
+
+    cov = load_covenants(fitted_categorical["covenants"])
+    data = load_data(fitted_categorical["data"]).reset_index(drop=True)
+    feats = cov.feature_names()
+    numeric = [f for f in feats if f not in cov.categorical_features()]
+    data[numeric] = data[numeric].astype(float)
+    from covenant.model import load_model
+
+    model = CovenantModel(load_model(fitted_categorical["model"]), feats)
+    p = model.p_bad(data)
+    denied = data[p >= 0.5]
+    bg = sample_background(data, feats, 30, 0)
+    attributions, _ = explain(model, denied[feats], bg, cov.categorical_features(), 0)
+    export = attributions.copy()
+    export.insert(0, "app_id", denied["app_id"].to_numpy())
+    export.to_csv(tmp_path / "attr.csv", index=False)
+    covenants = tmp_path / "covenants.yaml"
+    covenants.write_text(
+        (root / "covenants.yaml")
+        .read_text()
+        .replace("method: custom", "method: shapley")
+        .replace("reasons_file: reasons.csv", "attributions_file: attr.csv")
+    )
+    record = run_reason_code_check(
+        fitted_categorical["model"], fitted_categorical["data"], covenants
+    )
+    prov = record.details["shapley_export_provenance"]
+    assert prov["evaluated"] is True
+    assert prov["indistinguishable_from_measured"] is True
+    assert "fresh" in prov["note"]

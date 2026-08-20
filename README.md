@@ -50,7 +50,8 @@ for it. That test is Covenant's Check 1.
 | Exact attribution fast paths (ebm-exact, linear-exact, tree-shap) with the path named in every record | ✅ shipped |
 | `covenant report` — deterministic validation report, mapped to SR 26-2 / FREE-AI ([docs/MAPPING.md](docs/MAPPING.md)) | ✅ shipped |
 | OptBinning `Scorecard` adapter, InterpretML EBM exact path, `.skops` safe loading | ✅ shipped |
-| Docs site — [shrewdlemon.github.io/covenant](https://shrewdlemon.github.io/covenant/) | ✅ shipped |
+| `covenant compare` — champion vs challenger with paired-bootstrap deltas | ✅ shipped |
+| Docs site with full [schema reference](https://shrewdlemon.github.io/covenant/reference/) | ✅ shipped |
 
 ## What it does
 
