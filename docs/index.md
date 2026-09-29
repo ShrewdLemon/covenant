@@ -5,8 +5,11 @@ testable claims about its behaviour — so Covenant tests them.
 
 ```bash
 pip install covenants     # distribution name is plural
-import covenant           # import name is singular
 covenant --help           # CLI
+```
+
+```python
+import covenant           # import name is singular
 ```
 
 In lending, a covenant is a promise a borrower makes and a lender verifies.

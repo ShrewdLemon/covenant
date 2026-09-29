@@ -1,13 +1,30 @@
 # Covenant
 
+[![PyPI](https://img.shields.io/pypi/v/covenants)](https://pypi.org/project/covenants/)
+[![Python](https://img.shields.io/pypi/pyversions/covenants)](https://pypi.org/project/covenants/)
+[![CI](https://github.com/ShrewdLemon/covenant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ShrewdLemon/covenant/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-shrewdlemon.github.io%2Fcovenant-blue)](https://shrewdlemon.github.io/covenant/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 **pytest for credit-model governance.** A model's documentation is a set of
-testable claims about its behaviour — so Covenant tests them.
+testable claims about its behaviour, so Covenant tests them.
+
+For credit-risk and model-risk teams at lenders, NBFCs and fintechs who need
+evidence that a scoring model still does what its documentation says.
+
+## Install
 
 ```bash
 pip install covenants     # distribution name is plural
-import covenant           # import name is singular
 covenant --help           # CLI
 ```
+
+```python
+import covenant           # import name is singular
+```
+
+Python 3.11 to 3.13. The docs are at
+[shrewdlemon.github.io/covenant](https://shrewdlemon.github.io/covenant/).
 
 In lending, a covenant is a promise a borrower makes and a lender verifies.
 Here, the promises are the model's: which features it uses, which direction
@@ -139,6 +156,16 @@ covenant check reason-codes model.joblib train.csv
 covenant diff my-scorecard 3f9c1a2b8d4e 7e2d9c0b1a3f
 ```
 
+`covenant init` writes template files. Edit them to describe your model
+before you register. For a model you can run end to end in a minute, use the
+broken-scorecard demo below. The output above is illustrative; the demo
+section shows real output.
+
+Other commands in the 0.6 release: `covenant check all` (every check, one
+exit code), `covenant report` (the validation report), `covenant compare`
+(champion vs challenger), `covenant show`, `covenant checks` and
+`covenant list`. Run `covenant <command> --help` for options.
+
 The model contract is `predict_proba` over a dataframe — scikit-learn
 estimators and pipelines work as-is.
 
@@ -265,12 +292,61 @@ pip install "covenants[boosters]"    # xgboost/lightgbm: constraint reading + Tr
 pip install "covenants[integrations]"  # all of the above
 ```
 
-## Roadmap
+## How it's tested
 
+- 186 tests in `tests/` (pytest, including hypothesis property tests). All
+  pass on the 0.6.0 code.
+- CI runs on every push and pull request: ruff lint and the test suite on
+  Python 3.11, 3.12 and 3.13; mypy plus the optional-integration tests; and a
+  demo job.
+- The demo job runs the demo commands shown in this README on the example
+  models and asserts the exit codes: the broken and leaky models must breach
+  (exit 1), the fixed and clean ones must pass (exit 0). It also renders each
+  report twice and fails if the two differ by a single byte.
+- The docs site is built with `mkdocs build --strict` in CI.
+
+## Design principles
+
+- **Claims live in your repo.** Covenants and inventory records are flat
+  YAML under version control. History is `git log`; review is a diff.
+- **Evidence, not verdicts.** A check reports what it measured and against
+  which threshold. Validators and auditors decide what it means.
+- **Say how a number was made.** Every attribution-based record names the
+  path that produced it, and reports how stable the measured side is.
+- **Same inputs, same bytes.** Records and reports are deterministic and
+  hash-addressed, so they can be cited and replayed later.
+- **No fabricated numbers.** The demos run on real public datasets (and one
+  clearly labelled synthetic one), and every model figure in this README comes
+  from running them.
+- **Strict inputs.** A typo'd key or an empty justification is an error, not
+  a silent default.
+
+## Limitations and roadmap
+
+- Alpha software (0.x). The file formats carry a schema version, but
+  options may still change between releases. See [CHANGELOG.md](CHANGELOG.md).
+- Built for default/no-default scores: the contract is `predict_proba` over a
+  dataframe, read as the probability of the bad class.
+- Model files load through `joblib`/`pickle`, which runs code. Point Covenant
+  only at models you trust, or use `.skops`. See [SECURITY.md](SECURITY.md).
+- The measured side of Check 1 is post-hoc attribution outside the exact
+  paths (EBM, linear, tree). That is an approximation, which is why its
+  background stability is reported.
+- The exclusions check surfaces likely proxies. It cannot prove that none
+  exist.
+- The regulatory mapping in [docs/MAPPING.md](docs/MAPPING.md) maps checks to
+  model-risk guidance (SR 26-2, RBI FREE-AI). It is not legal advice and does
+  not make a model compliant.
 - Recourse validity (does following the reason code actually flip the
-  decision?), robustness/resilience and fairness — deferred to the tools
+  decision?), robustness/resilience and fairness are deferred to the tools
   that already do them well (DiCE/CARLA, PiML, Fairlearn/SolasAI).
 
 ## License
 
-Apache-2.0.
+Apache-2.0. See [LICENSE](LICENSE).
+
+## Contact
+
+Built by Punarbasu ([github.com/ShrewdLemon](https://github.com/ShrewdLemon)).
+Bugs and questions go to [GitHub issues](https://github.com/ShrewdLemon/covenant/issues);
+security reports follow [SECURITY.md](SECURITY.md).
