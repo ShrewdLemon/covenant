@@ -64,6 +64,8 @@ covenant = "covenant.cli:app"
 [project.urls]
 Homepage = "https://github.com/ShrewdLemon/covenant"
 Issues = "https://github.com/ShrewdLemon/covenant/issues"
+Documentation = "https://shrewdlemon.github.io/covenant/"
+Changelog = "https://github.com/ShrewdLemon/covenant/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/covenant"]
